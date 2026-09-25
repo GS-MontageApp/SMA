@@ -6,7 +6,7 @@
     <title>Schlauchmanagement PWA - Excel Generator</title>
     <!-- Tailwind CSS für modernes, responsives UI (S24 & iOS optimiert) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS (xlsx) Bibliothek für den Client-seitigen Excel-Export mit Format-Erhalt -->
+    <!-- SheetJS (xlsx) Bibliothek für den Client-seitigen Excel-Export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-center items-center p-4">
@@ -17,11 +17,11 @@
         <!-- Header / Titel -->
         <div class="text-center space-y-2">
             <span class="text-xs font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                PWA v0.0.x - Master Template Klon
+                PWA v0.0.x - Original-Download
             </span>
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">Schlauchmanagement</h1>
             <p class="text-sm text-slate-500">
-                Original-Excel-Vorlage aus dem Unterordner templates/ laden und auf 60 Zeilen optimiert generieren.
+                Original-Excel-Vorlage verlustfrei mit Zeitstempel im Dateinamen herunterladen.
             </p>
         </div>
 
@@ -32,7 +32,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Excel-Vorlage herunterladen</span>
+                <span>Original-Vorlage herunterladen</span>
             </button>
         </div>
 
@@ -51,44 +51,36 @@
             }
 
             async downloadTemplate() {
-                if (typeof XLSX === 'undefined') {
-                    alert("SheetJS Bibliothek konnte nicht geladen werden.");
-                    return;
-                }
-
                 try {
-                    // Lade die originale Excel-Datei aus dem Templates-Unterordner
+                    // Lade die originale Excel-Datei als Binärdaten (ArrayBuffer) aus dem Unterordner templates/
                     const response = await fetch(this.templateUrl);
                     if (!response.ok) {
                         throw new Error(`Fehler beim Laden der Vorlage: ${response.statusText}`);
                     }
                     const arrayBuffer = await response.arrayBuffer();
 
-                    // Workbook einlesen mit SheetJS
-                    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellStyles: true, cellFormulas: true });
+                    // Generiere aktuellen Zeitstempel (Format: JJJJ-MM-TT_HH-MM-SS)
+                    const now = new Date();
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                    
+                    const fileName = `${timestamp}_Schlauchmanagement.xlsx`;
 
-                    // Verarbeite 'Tabelle1' (Begrenzung auf 60 Zeilen bzw. entsprechende Blöcke)
-                    if (workbook.Sheets['Tabelle1']) {
-                        this.optimizeSheetTo60Rows(workbook.Sheets['Tabelle1']);
-                    }
-
-                    // Download auslösen
-                    XLSX.writeFile(workbook, "Schlauchmanagement_60_Zeilen.xlsx");
+                    // Erstelle einen Blob aus dem unveränderten ArrayBuffer (garantiert 100% Erhalt von Formatierung, Logo, Spaltenbreiten & Zeilenhöhen)
+                    const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    
+                    // Starte den lokalen Download im Browser (unterstützt auf S24 / iOS / Desktop)
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
 
                 } catch (error) {
                     console.error(error);
                     alert("Die Excel-Vorlage ('templates/XLSX-Muster.xlsx') konnte nicht geladen werden. Bitte stelle sicher, dass der Ordner 'templates' existiert.");
-                }
-            }
-
-            optimizeSheetTo60Rows(sheet) {
-                if (!sheet['!ref']) return;
-
-                const range = XLSX.utils.decode_range(sheet['!ref']);
-                // Begrenzung auf ca. 75 Zeilen (inkl. Header, 60 Datensatzzeilen und Footer)
-                if (range.e.r > 75) {
-                    range.e.r = 75;
-                    sheet['!ref'] = XLSX.utils.encode_range(range);
                 }
             }
         }
