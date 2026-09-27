@@ -1,11 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.39)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.40)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Zuverlässige Erkennung von "KENNZ." als Startspalte (Spalte 1) 
- * und Verwendung der exakten, festen Master-Katalog Überschriften (Spalte 1 bis 18) 
- * als sauberer Sticky Header. Speichert präzise Original-Koordinaten für den Export.
+ * EXKLUSIVE ÄNDERUNG: Vollständiger Zeilenscan von oben bis unten nach "KENNZ.". 
+ * Automatische fortlaufende Nummerierung (Spalte 1) und strenger Schlauch-Filter 
+ * in Spalte 2 (Index 1): Zeilen ohne Schlauch-Eintrag werden übersprungen, ohne dass 
+ * der Scan bei Lücken vorzeitig abbricht. Inklusive präzisem Koordinaten-Mapping.
  */
 
 window.currentActiveCustomer = null;
@@ -63,7 +64,8 @@ window.AppData = {
             "Tabelle1": [
               ["Info", "Nicht relevant"],
               ["KENNZ.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"]
+              ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Leere Vorlagenzeile (wird übersprungen)
+              ["", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"] // Echter Schlauch
             ]
           } 
         }
@@ -278,7 +280,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Extraktion ab "KENNZ." mit festem Master-Katalog als Header & Koordinaten-Mapping
+  // 2. Vollständiger Scan bis Zeilenende + automatischer Schlauch-Filter & laufende Nummerierung
   let rawData = [];
   let coordinateMapping = [];
   
@@ -301,20 +303,22 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     }
 
     if (headerRowIndex !== -1 && kennzColIndex !== -1) {
-      // Setze den offiziellen Master-Katalog als Tabellenkopf (Zeile 0 in der UI)
+      // Setze den offiziellen Master-Katalog als Tabellenkopf (Zeile 0)
       rawData.push(window.MASTER_CATALOG_HEADERS);
-      
       let headerCoords = [];
       for (let c = 0; c < 18; c++) {
         headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
       }
       coordinateMapping.push(headerCoords);
 
-      // Datenzeilen ab dem gefundenen Startpunkt einlesen (inklusive Validierung)
+      let sequentialId = 1;
+
+      // Vollständiger Scan von Zeile headerRowIndex + 1 bis zum absoluten Ende der Tabelle
       for (let r = headerRowIndex + 1; r < targetRows.length; r++) {
         const row = targetRows[r];
         if (!Array.isArray(row)) continue;
 
+        // Extrahiere exakt 18 Spalten ab KENNZ.
         let extractedSlice = [];
         let rowCoords = [];
         for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
@@ -322,8 +326,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
           rowCoords.push({ originalRow: r, originalCol: c });
         }
 
-        const hasContent = extractedSlice.some(cell => String(cell).trim() !== '');
-        if (!hasContent) continue;
+        // SCHLAUCH-FILTER: Prüfe, ob in Spalte 2 (Index 1: "Schlauch") ein Eintrag vorhanden ist
+        const schlauchVal = String(extractedSlice[1] || "").trim();
+        if (schlauchVal === "") {
+          // Kein Schlauch hinterlegt -> Leere Vorlagenzeile oder Lücke (z.B. Mitten im Dokument), wird übersprungen
+          continue;
+        }
+
+        // Automatische fortlaufende Nummerierung für Spalte 1 (Index 0: "Kennz.")
+        extractedSlice[0] = String(sequentialId++);
 
         rawData.push(extractedSlice);
         coordinateMapping.push(rowCoords);
@@ -331,9 +342,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     } else {
       // Fallback
       rawData.push(window.MASTER_CATALOG_HEADERS);
+      let fallbackId = 1;
       targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
-        if (trimmed.some(cell => String(cell).trim() !== '')) {
+        const schlauchVal = String(trimmed[1] || "").trim();
+        if (schlauchVal !== "") {
+          trimmed[0] = String(fallbackId++);
           rawData.push(trimmed);
           coordinateMapping.push(trimmed.map((_, cIdx) => ({ originalRow: rIdx, originalCol: cIdx })));
         }
