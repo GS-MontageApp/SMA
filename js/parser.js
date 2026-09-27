@@ -1,159 +1,107 @@
 /**
- * @file parser.js
- * @description Zentrales Parser-Modul für die Schlauchmanagement PWA.
- * Implementiert die strikten Vorgaben aus dem Master-Pflichtenheft:
- * - Strikte Tabellenblatt-Einschränkung auf "Tabelle1" (ohne Leerzeichen)[cite: 1].
- * - Metadaten-Extraktion (Kunde & Anlage)[cite: 1].
- * - Header-Normalisierung (Tolerierung von Zeilenumbrüchen).
- * - Vollständiger Scan mit robustem Kennz.-Zeilenfilter[cite: 1].
+ * ============================================================================
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
+ * ============================================================================
+ * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
+ * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
  */
 
-class HoseExcelParser {
-    /**
-     * Normalisiert einen Tabellen-Header (entfernt Zeilenumbrüche und überschüssige Leerzeichen).
-     */
-    static normalizeHeader(headerStr) {
-        if (!headerStr) return "";
-        return String(headerStr)
-            .replace(/[\r\n]+/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
+window.ExcelParser = {
+  validateFile: function(file) {
+    if (!file) {
+      throw new Error("Keine Datei ausgewählt.");
+    }
+    const validExtensions = ['.xls', '.xlsx'];
+    const fileNameLower = file.name.toLowerCase();
+    const isValidExt = validExtensions.some(ext => fileNameLower.endsWith(ext));
+    
+    if (!isValidExt) {
+      throw new Error("Ungültiges Dateiformat. Bitte nur .xls oder .xlsx Dateien verwenden.");
     }
 
-    /**
-     * Strenge Validierung: Prüft, ob exakt das Arbeitsblatt "Tabelle1" existiert.
-     */
-    static validateAndGetSheet(workbook) {
-        if (!workbook || !workbook.SheetNames || !workbook.SheetNames.length) {
-            throw new Error("Kritischer Fehler: Das Excel-Workbook ist leer oder ungültig.");
-        }
-
-        const targetSheetName = "Tabelle1";
-
-        if (!workbook.SheetNames.includes(targetSheetName)) {
-            throw new Error(
-                `Sicherheits-Abbruch: Das obligatorische Arbeitsblatt '${targetSheetName}' ` +
-                `(exakter Name ohne Leerzeichen) wurde in der hochgeladenen Datei nicht gefunden. ` +
-                `Vorhandene Blätter: [${workbook.SheetNames.join(", ")}].`
-            );
-        }
-
-        return workbook.Sheets[targetSheetName];
+    const maxSize = 650 * 1024;
+    if (file.size > maxSize) {
+      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz mobiler Browser limitiert.");
     }
 
-    /**
-     * Hauptparsing-Funktion für Tabelle1.
-     */
-    static parseTabelle1(workbook) {
-        const sheet = this.validateAndGetSheet(workbook);
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    return true;
+  },
 
-        if (!rows || rows.length === 0) {
-            throw new Error("Kritischer Fehler: Das Arbeitsblatt 'Tabelle1' enthält keine Daten.");
+  parseFileBuffer: function(arrayBuffer, fileName) {
+    try {
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      let foundCustomer = null;
+      let rawRows = [];
+
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        
+        if (jsonSheet.length > 0 && rawRows.length === 0) {
+          rawRows = jsonSheet;
         }
 
-        let kunde = "";
-        let anlage = "";
-        let headerRowIndex = -1;
-        let columnMapping = {};
-
-        // 1. Metadaten-Extraktion & Header-Erkennung
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-
-            for (let j = 0; j < row.length; j++) {
-                const cellVal = String(row[j]).trim();
-                if (cellVal === "Kunde" && j + 1 < row.length) {
-                    kunde = String(row[j + 1]).trim();
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
+        jsonSheet.forEach(row => {
+          row.forEach((cellVal, colIdx) => {
+            if (cellVal !== undefined && cellVal !== null) {
+              const cellStr = String(cellVal).trim();
+              
+              if (cellStr === "Kunde") {
+                if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                  foundCustomer = String(row[colIdx + 1]).trim();
                 }
-                if (cellVal === "Anlage" && j + 1 < row.length) {
-                    anlage = String(row[j + 1]).trim();
-                }
+              }
             }
-
-            const rowStringJoined = row.map(cell => this.normalizeHeader(cell)).join(" ");
-            if (rowStringJoined.includes("Kennz.") && rowStringJoined.includes("Schlauch")) {
-                headerRowIndex = i;
-
-                row.forEach((colHeader, colIndex) => {
-                    const norm = this.normalizeHeader(colHeader);
-                    if (norm.includes("Kennz.")) columnMapping.kennz = colIndex;
-                    if (norm.includes("Schlauch")) columnMapping.schlauch = colIndex;
-                    if (norm === "NW") columnMapping.nw = colIndex;
-                    if (norm === "Anschluß A") columnMapping.anschlussA = colIndex;
-                    if (norm === "Anschluß B") columnMapping.anschlussB = colIndex;
-                    if (norm === "Länge") columnMapping.laenge = colIndex;
-                    if (norm === "Lage A") columnMapping.lageA = colIndex;
-                    if (norm === "Lage B") columnMapping.lageB = colIndex;
-                    if (norm.includes("max. Druck")) columnMapping.druck = colIndex;
-                    if (norm.includes("Herstell") && norm.includes("datum")) columnMapping.herstelldatum = colIndex;
-                    if (norm.includes("Sicherheits") && norm.includes("Bewertung")) columnMapping.sicherheit = colIndex;
-                    if (norm.includes("Theor.") && norm.includes("Lebens")) columnMapping.lebensdauer = colIndex;
-                    if (norm.includes("Prüfung*")) columnMapping.pruefungStatus = colIndex;
-                    if (norm === "Nächste Prüfung") columnMapping.naechstePruefung = colIndex;
-                    if (norm === "Prüfer") columnMapping.pruefer = colIndex;
-                    if (norm === "Einbauort") columnMapping.einbauort = colIndex;
-                    if (norm === "Bemerkung") columnMapping.bemerkung = colIndex;
-                });
-                break;
-            }
-        }
-
-        if (headerRowIndex === -1) {
-            throw new Error("Kritischer Fehler: Die Spaltenköpfe (Header) konnten in 'Tabelle1' nicht identifiziert werden.");
-        }
-
-        // Exakte Spalte "Prüfung am" ermitteln
-        rows[headerRowIndex].forEach((colHeader, colIndex) => {
-            if (this.normalizeHeader(colHeader) === "Prüfung am") columnMapping.pruefungAm = colIndex;
+          });
         });
+      });
 
-        const records = [];
+      // Fallback für den Kundennamen, falls kein Label "Kunde" im Dokument gefunden wurde
+      if (!foundCustomer) {
+        foundCustomer = fileName.replace(/\.[^/.]+$/, "");
+      }
 
-        // 2. Vollständiger Scan mit robustem Zeilen-Filter (Kennz.-Prüfung)
-        for (let i = headerRowIndex + 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row || row.length === 0) continue;
+      // Filterung & Strukturierung der Tabellenzeilen
+      let filteredRows = [];
+      let headerFound = false;
 
-            const kennzVal = columnMapping.kennz !== undefined ? String(row[columnMapping.kennz]).trim() : "";
+      rawRows.forEach(row => {
+        const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+        if (!hasContent) return;
 
-            // Zeilen-Validierungsregel: Überspringe Zeilen ohne gültige Kennz.-Nummer[cite: 1]
-            if (!kennzVal || !/^\d/.test(kennzVal)) {
-                continue;
-            }
-
-            const record = {
-                kennz: kennzVal,
-                schlauch: columnMapping.schlauch !== undefined ? row[columnMapping.schlauch] : "",
-                nw: columnMapping.nw !== undefined ? row[columnMapping.nw] : "",
-                anschlussA: columnMapping.anschlussA !== undefined ? row[columnMapping.anschlussA] : "",
-                anschlussB: columnMapping.anschlussB !== undefined ? row[columnMapping.anschlussB] : "",
-                laenge: columnMapping.laenge !== undefined ? row[columnMapping.laenge] : "",
-                lageA: columnMapping.lageA !== undefined ? row[columnMapping.lageA] : "",
-                lageB: columnMapping.lageB !== undefined ? row[columnMapping.lageB] : "",
-                druck: columnMapping.druck !== undefined ? row[columnMapping.druck] : "",
-                herstelldatum: columnMapping.herstelldatum !== undefined ? row[columnMapping.herstelldatum] : "",
-                sicherheit: columnMapping.sicherheit !== undefined ? row[columnMapping.sicherheit] : "",
-                lebensdauer: columnMapping.lebensdauer !== undefined ? row[columnMapping.lebensdauer] : "",
-                pruefungAm: columnMapping.pruefungAm !== undefined ? row[columnMapping.pruefungAm] : "",
-                pruefungStatus: columnMapping.pruefungStatus !== undefined ? row[columnMapping.pruefungStatus] : "",
-                naechstePruefung: columnMapping.naechstePruefung !== undefined ? row[columnMapping.naechstePruefung] : "",
-                pruefer: columnMapping.pruefer !== undefined ? row[columnMapping.pruefer] : "",
-                einbauort: columnMapping.einbauort !== undefined ? row[columnMapping.einbauort] : "",
-                bemerkung: columnMapping.bemerkung !== undefined ? row[columnMapping.bemerkung] : ""
-            };
-
-            records.push(record);
+        const rowString = row.join(' ').toLowerCase();
+        if (rowString.includes('kunde') || rowString.includes('anlage')) {
+          filteredRows.push(row);
+          return;
         }
 
-        return {
-            kunde,
-            anlage,
-            recordsCount: records.length,
-            records
-        };
-    }
-}
+        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
+          headerFound = true;
+          filteredRows.push(row);
+          return;
+        }
 
-// Global verfügbar machen
-window.HoseExcelParser = HoseExcelParser;
+        if (headerFound) {
+          filteredRows.push(row);
+        }
+      });
+
+      if (filteredRows.length === 0) {
+        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
+      }
+
+      return {
+        client: foundCustomer,
+        filename: fileName,
+        rawData: filteredRows
+      };
+
+    } catch (err) {
+      console.error("Parser-Fehler:", err);
+      throw new Error("Fehler beim Einlesen der Excel-Struktur. Bitte prüfen Sie das Dateiformat.");
+    }
+  }
+};
