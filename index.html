@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.14 === -->
+  <!-- === SMA v0.1.15 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.14</title>
+  <title id="page-title">Schlauchmanagement v0.1.15</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.14">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.15">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -121,7 +121,35 @@
     let currentActiveFileName = null;
     let openedFilesStack = []; // Enthält Objekte: { clientName, fileName }
 
-    // Multi-File Footer mit Responsive Weiche: Mobile scrollbar, Desktop flex-wrap (keine horizontalen Scrollbalken)
+    // Session State im LocalStorage persistieren
+    window.saveSessionState = function() {
+      const sessionState = {
+        activeCustomer: currentActiveCustomer,
+        activeFile: currentActiveFileName,
+        stack: openedFilesStack
+      };
+      localStorage.setItem('sma_session_state', JSON.stringify(sessionState));
+    };
+
+    window.loadSessionState = function() {
+      const stored = localStorage.getItem('sma_session_state');
+      if (!stored) return false;
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.stack) && parsed.stack.length > 0) {
+          openedFilesStack = parsed.stack;
+          if (parsed.activeFile && parsed.activeCustomer) {
+            window.openFileOnStage(parsed.activeCustomer, parsed.activeFile, false);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error("Fehler beim Laden des Session-States:", e);
+      }
+      return false;
+    };
+
+    // Multi-File Footer mit Responsive Weiche
     window.updateFooterOpenFiles = function() {
       const container = document.getElementById('file_tabs_container');
       if (!container) return;
@@ -135,7 +163,6 @@
       openedFilesStack.forEach(item => {
         const isCurrent = (item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName);
         const badge = document.createElement('div');
-        // Aktive Kachel erhält Header-Grün (#10b981), inaktive Kachel ein ruhiges Slate
         badge.className = (isCurrent ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300 ' : 'bg-slate-200 hover:bg-slate-300 text-slate-700 ') + 
                           'px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap cursor-pointer transition-colors shrink-0';
         badge.title = `${item.clientName} / ${item.fileName}`;
@@ -240,7 +267,7 @@
       });
     };
 
-    // Bearbeitungs-Bühne öffnen für Mobile und Desktop im Breitbildmodus
+    // Bearbeitungs-Bühne öffnen & Sitzung speichern
     window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const clients = window.AppData.getClients();
       const fileList = clients[clientName] || [];
@@ -260,6 +287,7 @@
       }
 
       window.updateFooterOpenFiles();
+      window.saveSessionState();
 
       const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
 
@@ -275,7 +303,6 @@
       container.innerHTML = '';
 
       const wrapper = document.createElement('div');
-      // Responsive Höhe für optimale PC- und Smartphone-Ausnutzung
       wrapper.className = 'overflow-x-auto h-[calc(100vh-170px)] bg-white shadow-none w-full';
 
       const table = document.createElement('table');
@@ -311,7 +338,7 @@
       container.appendChild(wrapper);
     };
 
-    // Excel-Tabelle schließen mit Auto-Save & Fokus auf den linken Nachbarn (Best Practice)
+    // Schließen mit Auto-Save, Fokus auf linken Nachbarn & Session-Update
     window.closeFileOnStage = function() {
       if (currentActiveCustomer && currentActiveFileName) {
         const clients = window.AppData.getClients();
@@ -322,6 +349,8 @@
         }
         openedFilesStack = openedFilesStack.filter(item => !(item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName));
       }
+
+      window.saveSessionState();
 
       if (openedFilesStack.length > 0) {
         const nextItem = openedFilesStack[0];
@@ -344,6 +373,7 @@
           window.AppData.removeFileFromClient(clientName, fileName);
           openedFilesStack = openedFilesStack.filter(item => !(item.clientName === clientName && item.fileName === fileName));
           window.updateFooterOpenFiles();
+          window.saveSessionState();
           window.renderCustomerFilesList();
           window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
         }
@@ -358,6 +388,7 @@
           window.AppData.removeClient(clientName);
           openedFilesStack = openedFilesStack.filter(item => item.clientName !== clientName);
           window.updateFooterOpenFiles();
+          window.saveSessionState();
           window.renderDateipool();
           window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
         }
@@ -457,8 +488,8 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.14"></script>
-  <script src="js/auth.js?v=v0.1.14"></script>
+  <script src="js/parser.js?v=v0.1.15"></script>
+  <script src="js/auth.js?v=v0.1.15"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -477,7 +508,7 @@
     </div>
   </header>
 
-  <!-- Hauptcontainer (Responsive Max-Width für Desktop und Mobile) -->
+  <!-- Hauptcontainer -->
   <main class="flex-1 max-w-7xl mx-auto w-full pt-3 pb-28 px-3 flex flex-col justify-start">
         
     <!-- MODUL 1: ZENTRALER DATEIPOOL -->
@@ -507,7 +538,7 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Breitbild-Modus für Desktop) -->
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG -->
     <div id="view-buehne" class="app-view hidden flex-1 flex flex-col -mx-3 -mt-3">
       <div class="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between shrink-0">
         <button onclick="closeFileOnStage()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-2xs">
@@ -533,7 +564,7 @@
 
   </main>
 
-  <!-- Footer Navigation mit Responsive Weiche: Mobile scrollbar, Desktop flex-wrap (Keine Scrollleisten auf dem PC) -->
+  <!-- Footer Navigation -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
     <div id="file_tabs_container" class="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto sm:overflow-x-visible sm:flex-wrap pb-1 sm:pb-0">
       <!-- Wird dynamisch belegt -->
@@ -566,7 +597,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.14</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.15</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -635,8 +666,13 @@
       AuthManager.init();
       const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
       setTheme(savedTheme);
-      window.renderDateipool();
-      window.updateFooterOpenFiles();
+
+      // Sitzung wiederherstellen oder Standard-Dateipool anzeigen
+      const restored = window.loadSessionState();
+      if (!restored) {
+        window.renderDateipool();
+        window.updateFooterOpenFiles();
+      }
     });
   </script>
 </body>
