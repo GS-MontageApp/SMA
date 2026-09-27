@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.42)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.43)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Greift beim Öffnen auf der Bühne direkt und exklusiv auf "Tabelle1" zu.
+ * Prüft beim Öffnen auf der Bühne exakt, ob "Tabelle1" existiert und fängt
+ * fehlende Treffer ab, ohne Auswahlseiten anzuzeigen.
  */
 
 window.currentActiveCustomer = null;
@@ -201,10 +202,16 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // STRIKTER ZUGRIFF: Direkt und ausnahmslos "Tabelle1" (ohne Auswahlseite, ohne Fallback)
+  // SICHERE PRÜFUNG: Gibt es "Tabelle1" im Dokument?
   let targetRows = null;
-  if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
-    targetRows = fileObj.sheets["Tabelle1"];
+  if (fileObj.sheets) {
+    if (fileObj.sheets["Tabelle1"]) {
+      targetRows = fileObj.sheets["Tabelle1"];
+    } else {
+      const availableSheets = Object.keys(fileObj.sheets).join(', ');
+      window.showSystemModal('Strukturfehler', `Das erforderliche Arbeitsblatt "Tabelle1" wurde in der Datei "${fileName}" nicht gefunden.\n\nVorhandene Blätter: [${availableSheets}]`, null, false);
+      targetRows = [["Fehler", `Tabelle1 in ${fileName} nicht gefunden. Vorhanden: ${availableSheets}`]];
+    }
   } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
