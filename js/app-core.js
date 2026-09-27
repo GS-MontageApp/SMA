@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.41)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.42)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Integrierte zentrale Stammdaten-Liste gültiger Schlauchtypen. 
- * Der Parser gleicht jeden Eintrag in der Spalte "Schlauch" strikt gegen diese Referenz ab, 
- * ignoriert Seitenumbrüche und Vorlagenblöcke und nummeriert echte Schläuche fortlaufend (1, 2, 3...).
+ * EXKLUSIVE ÄNDERUNG: Lückenloser Scan ab Zeile 1 (kein Verlust der ersten Schläuche),
+ * Übernahme bestehender Original-Kennzeichnungen (z.B. "16.1") mit Auto-Fallback,
+ * sowie zweistufige Validierung (Direktabgleich + Nennweiten-Heuristik als Rettungsanker).
  */
 
 window.currentActiveCustomer = null;
@@ -69,9 +69,9 @@ window.AppData = {
             "Tabelle1": [
               ["Info", "Nicht relevant"],
               ["KENNZ.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"], // Echter Schlauch 1
-              ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Vorlagen-Leerzeile (wird gefiltert)
-              ["", "4SH", "25", "DKOS", "DKOS", "2000", "0", "0", "420", "Sep. 25", "2", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 2", "Standard"]  // Echter Schlauch 2
+              ["16.1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"], // Schlauch 1 mit Original-Kennz
+              ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Leerzeile (wird gefiltert)
+              ["16.3", "4SH", "25", "DKOS", "DKOS", "2000", "0", "0", "420", "Sep. 25", "2", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 2", "Standard"]  // Schlauch 2 mit Original-Kennz
             ]
           } 
         }
@@ -286,7 +286,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Vollständiger Scan mit Stammdaten-Validierung in Spalte "Schlauch"
+  // 2. Vollständiger Scan ab Zeile 1 mit Kennz.-Übernahme und Nennweiten-Heuristik
   let rawData = [];
   let coordinateMapping = [];
   
@@ -317,10 +317,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       }
       coordinateMapping.push(headerCoords);
 
-      let sequentialId = 1;
+      let autoIncrementId = 1;
       const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
 
-      // Vollständiger Scan bis zum Dateiende
+      // Lückenloser Scan ab Zeile 1 (bzw. headerRowIndex + 1) bis zum absoluten Dateiende
       for (let r = headerRowIndex + 1; r < targetRows.length; r++) {
         const row = targetRows[r];
         if (!Array.isArray(row)) continue;
@@ -332,17 +332,26 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
           rowCoords.push({ originalRow: r, originalCol: c });
         }
 
-        // STAMMDATEN-FILTER: Prüfe, ob der Wert in Spalte 2 (Index 1: "Schlauch") in unserer Liste gültiger Typen ist
+        // HEURISTIK-PRÜFUNG:
         const schlauchRaw = String(extractedSlice[1] || "").trim();
         const schlauchNorm = normalizeText(schlauchRaw);
+        
+        // Nennweiten-Joker (Spalte 3 / Index 2: NW) auf numerischen Inhalt prüfen
+        const nwVal = String(extractedSlice[2] || "").trim();
+        const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
 
-        if (schlauchNorm === "" || !normalizedValidTypes.includes(schlauchNorm)) {
-          // Ungültig oder kein echter Schlauch (z.B. Seitenumbruch-Überschrift, Leerzeile, Müll) -> Überspringen
+        const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
+
+        // Wenn weder Typ übereinstimmt noch eine gültige Nennweite vorhanden ist -> leere Zeile / Störblock -> Überspringen
+        if (!isDirectTypeMatch && !hasValidNW) {
           continue;
         }
 
-        // Automatische fortlaufende Nummerierung für Spalte 1 (Index 0: "Kennz.")
-        extractedSlice[0] = String(sequentialId++);
+        // KENNZEICHNUNG (Spalte 1 / Index 0): Übernehme Originalwert (z.B. "16.1"), falls vorhanden; sonst Auto-Increment
+        const originalKennz = String(extractedSlice[0] || "").trim();
+        if (originalKennz === "") {
+          extractedSlice[0] = String(autoIncrementId++);
+        }
 
         rawData.push(extractedSlice);
         coordinateMapping.push(rowCoords);
@@ -356,8 +365,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
         const schlauchNorm = normalizeText(trimmed[1]);
-        if (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm)) {
-          trimmed[0] = String(fallbackId++);
+        const hasValidNW = String(trimmed[2] || "").trim() !== "" && !isNaN(Number(trimmed[2]));
+
+        if (schlauchNorm !== "" || hasValidNW) {
+          if (String(trimmed[0] || "").trim() === "") {
+            trimmed[0] = String(fallbackId++);
+          }
           rawData.push(trimmed);
           coordinateMapping.push(trimmed.map((_, cIdx) => ({ originalRow: rIdx, originalCol: cIdx })));
         }
