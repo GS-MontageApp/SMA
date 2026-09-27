@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.27)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.28)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -43,7 +43,7 @@ window.AppData = {
     if (!clients[clientName] || !Array.isArray(clients[clientName])) return false;
     return clients[clientName].some(f => f && f.name === fileName);
   },
-  addFileToClient: function(clientName, fileName, rawData) {
+  addFileToClient: function(clientName, fileName, rawData, allSheets) {
     let clients = this.getClients();
     if (!clients[clientName] || !Array.isArray(clients[clientName])) {
       clients[clientName] = [];
@@ -54,8 +54,9 @@ window.AppData = {
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
       if (rawData) clients[clientName][existingIdx].rawData = rawData;
+      if (allSheets) clients[clientName][existingIdx].allSheets = allSheets;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData, allSheets: allSheets });
     }
     this.saveClients(clients);
   },
@@ -193,6 +194,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
+  // Rendert explizit die gefilterten Daten von Tabelle1
   const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
@@ -248,7 +250,7 @@ window.closeFileOnStage = function() {
     const fileList = clients[window.currentActiveCustomer] || [];
     const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
     if (fileObj) {
-      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData);
+      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData, fileObj.allSheets);
     }
     window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === window.currentActiveCustomer && item.fileName === window.currentActiveFileName));
   }
@@ -360,7 +362,7 @@ window.handleExcelImport = function(event) {
           'Datei bereits vorhanden',
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
+            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData, pendingImportData.allSheets);
             if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
               window.UIPool.renderDateipool();
             }
@@ -369,7 +371,7 @@ window.handleExcelImport = function(event) {
           }
         );
       } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
+        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData, parsed.allSheets);
         if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
           window.UIPool.renderDateipool();
         }
