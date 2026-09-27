@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.24)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.25)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -406,7 +406,7 @@ window.executeGranularCacheClear = function() {
   const clearTheme = document.getElementById('chk_theme')?.checked;
 
   if (!clearSession && !clearClients && !clearAuth && !clearTheme) {
-    window.showSystemModal('Hinweis', 'Es wurde keine Option ausgewählt. Es wurden keine Daten gelöscht.', null, false);
+    window.showSystemModal('Hinweis', 'Es wurde keine Auswahl getroffen.', null, false);
     window.closeCacheClearModal();
     return;
   }
