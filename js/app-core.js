@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.37)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.38)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Fehlertolerante, umlaut- und kodierungsunabhängige Suche nach "KENNZ." 
- * (behandelt Umlaute wie ü/ä sauber durch String-Normalisierung), exakte 18-Spalten-Extraktion 
- * mit Koordinaten-Mapping für den späteren Export sowie stabiler Sticky Header.
+ * EXKLUSIVE ÄNDERUNG: Fehlertolerante Erkennung und Zusammenführung von Tabellenköpfen 
+ * über mehrere Zeilen hinweg (behandelt verbundene Zellen bei "Länge" und Umlauten wie "Anschluss"), 
+ * exakte 18-Spalten-Extraktion mit Koordinaten-Mapping für den Export sowie stabiler Sticky Header.
  */
 
 window.currentActiveCustomer = null;
@@ -207,7 +207,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // Helper zur robusten Text-Normierung (fängt Umlaute ü->ue, ä->ae, ö->oe, ß->ss ab & ignoriert Groß/Klein/Leerzeichen)
+  // Helper zur Text-Normierung (Umlaut- und Leerzeichen-Bereinigung)
   function normalizeText(txt) {
     if (!txt) return "";
     return String(txt)
@@ -256,7 +256,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Fehlertolerante Extraktion ab "KENNZ." (Spalte 1 bis 18) inklusive Koordinaten-Mapping
+  // 2. Robuste Header-Zusammenführung über verbundene Zellen (Zeilen r bis r+3)
   let rawData = [];
   let coordinateMapping = [];
   
@@ -264,7 +264,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
-    // Suche nach der Zeile & Spalte mit "KENNZ" (mit Toleranz für Umlaute / Punkte)
+    // Suche nach "KENNZ"
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -280,7 +280,45 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     }
 
     if (headerRowIndex !== -1 && kennzColIndex !== -1) {
-      for (let r = headerRowIndex; r < targetRows.length; r++) {
+      // Baue die konsolidierte Kopfzeile zusammen (durchsucht die ersten 3 Zeilen ab Header-Index auf verbundene Werte wie "Länge")
+      let consolidatedHeader = [];
+      let headerCoords = [];
+      
+      for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
+        let bestHeaderVal = "";
+        let bestCoords = { originalRow: headerRowIndex, originalCol: c };
+
+        // Prüfe Zeile headerRowIndex bis headerRowIndex + 3 auf nicht-leere Werte in dieser Spalte
+        for (let scanR = headerRowIndex; scanR <= Math.min(headerRowIndex + 3, targetRows.length - 1); scanR++) {
+          if (targetRows[scanR] && targetRows[scanR][c] !== undefined && targetRows[scanR][c] !== null) {
+            let valStr = String(targetRows[scanR][c]).trim();
+            if (valStr !== "") {
+              bestHeaderVal = valStr;
+              bestCoords = { originalRow: scanR, originalCol: c };
+              break; // Nimm den ersten gültigen Text von oben nach unten (behandelt Merges perfekt)
+            }
+          }
+        }
+        consolidatedHeader.push(bestHeaderVal || `Spalte ${c - kennzColIndex + 1}`);
+        headerCoords.push(bestCoords);
+      }
+
+      rawData.push(consolidatedHeader);
+      coordinateMapping.push(headerCoords);
+
+      // Ab der ersten echten Datenzeile (unterhalb des Headers) einlesen
+      let dataStartIndex = headerRowIndex + 1;
+      // Finde heraus, wo die Daten wirklich anfangen (überspringe eventuelle Zwischen-Header-Zeilen)
+      for (let r = headerRowIndex + 1; r < targetRows.length; r++) {
+        const row = targetRows[r];
+        if (!Array.isArray(row)) continue;
+        let rowStr = row.slice(kennzColIndex, kennzColIndex + 2).join(' ').toUpperCase();
+        if (rowStr.includes('SCHLAUCH') || rowStr.includes('NW') || rowStr.includes('LÄNGE')) {
+          dataStartIndex = r + 1; // Überspringe Sub-Header
+        }
+      }
+
+      for (let r = dataStartIndex; r < targetRows.length; r++) {
         const row = targetRows[r];
         if (!Array.isArray(row)) continue;
 
@@ -292,13 +330,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         }
 
         const hasContent = extractedSlice.some(cell => String(cell).trim() !== '');
-        if (!hasContent && r > headerRowIndex) continue;
+        if (!hasContent) continue; // Leere Zeilen überspringen
 
         rawData.push(extractedSlice);
         coordinateMapping.push(rowCoords);
       }
     } else {
-      // Fallback, falls absolut kein "KENNZ" gefunden wurde
+      // Fallback
       targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
         if (trimmed.some(cell => String(cell).trim() !== '')) {
