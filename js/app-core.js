@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.25)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.26)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
