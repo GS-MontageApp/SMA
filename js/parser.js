@@ -1,9 +1,12 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.62)
  * ============================================================================
  * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
- * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
+ * den Kundennamen pur aus der rechten Nachbarzelle für die automatische Kundenerstellung.
+ * ÄNDERUNG in v0.1.62: 
+ * - Der nachgelagerte Zeilenfilter (der Zeilen vor Erkennung von Typ/Länge/Druck weggeworfen hat) wurde entfernt.
+ * - Sämtliche Zeilen ab Zeile 0 (inklusive der ersten 20 Zeilen und des Vorspanns) bleiben vollständig erhalten.
  */
 
 window.ExcelParser = {
@@ -37,9 +40,10 @@ window.ExcelParser = {
 
       workbook.SheetNames.forEach(sheetName => {
         const sheet = workbook.Sheets[sheetName];
-        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
         
-        if (jsonSheet.length > 0 && rawRows.length === 0) {
+        // Wir greifen primär auf "Tabelle1" zu (oder das erste gefundene Blatt mit Daten)
+        if (jsonSheet.length > 0 && (rawRows.length === 0 || sheetName === "Tabelle1")) {
           rawRows = jsonSheet;
         }
 
@@ -64,39 +68,28 @@ window.ExcelParser = {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      // Filterung & Strukturierung der Tabellenzeilen
+      // ROHDATEN-ÜBERNAHME OHNE ZEILENFILTER:
+      // Jede Zeile aus dem Sheet (ab Index 0, inklusive der ersten 20 Zeilen und des Vorspanns) 
+      // wird ungefiltert und vollständig für die Rohansicht übernommen.
       let filteredRows = [];
-      let headerFound = false;
 
-      rawRows.forEach(row => {
-        const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-        if (!hasContent) return;
-
-        const rowString = row.join(' ').toLowerCase();
-        if (rowString.includes('kunde') || rowString.includes('anlage')) {
-          filteredRows.push(row);
-          return;
-        }
-
-        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
-          headerFound = true;
-          filteredRows.push(row);
-          return;
-        }
-
-        if (headerFound) {
-          filteredRows.push(row);
-        }
-      });
+      if (rawRows && Array.isArray(rawRows)) {
+        rawRows.forEach(row => {
+          if (Array.isArray(row)) {
+            filteredRows.push(row);
+          }
+        });
+      }
 
       if (filteredRows.length === 0) {
-        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
+        filteredRows = [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
       return {
         client: foundCustomer,
         filename: fileName,
-        rawData: filteredRows
+        rawData: filteredRows,
+        sheets: workbook.Sheets // Alle Sheets für direkten Zugriff auf "Tabelle1"
       };
 
     } catch (err) {
