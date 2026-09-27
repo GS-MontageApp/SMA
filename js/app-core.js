@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.50)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.51)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.50: 
- * - Reiner Typ-basierter Suchlauf von oben nach unten.
- * - Sobald in einer Zeile ein Zellenwert exakt auf einen gültigen Schlauchtyp 
- *   aus den Stammdaten (VALID_SCHLAUCH_TYPES) trifft, ist der Startpunkt gefunden.
- * - Anschließendes lückenloses Durchlaufen bis zum Dateiende.
+ * ÄNDERUNG in v0.1.51: 
+ * - Strikter Zeilen-für-Zeile-Validierungsfilter: Jede Zeile ab Zeile 5 wird 
+ *   kompromisslos darauf geprüft, ob ein valider Schlauchtyp aus VALID_SCHLAUCH_TYPES
+ *   enthalten ist. Nur valide Schläuche werden übernommen, Überschriften/Müll entfallen.
  */
 
 window.currentActiveCustomer = null;
@@ -73,7 +72,7 @@ window.AppData = {
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
               ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1 (Typ "2SN" matched Stammdaten)
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1 (valider Typ)
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
           } 
@@ -280,15 +279,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. TYP-BASIERTER TOP-TO-BOTTOM SUCHLAUF & DURCHLAUF BIS ZUM ENDE
+  // 2. PARSER MIT STRICTER ZEILEN-FÜR-ZEILE-VALIDIERUNG ÜBER SCHLAUCHTYPEN
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    let headerRowIndex = 3; // Standard-Fallback für Spaltenkopf (Zeile 4)
+    let headerRowIndex = 3; // Standard-Fallback Zeile 4
     let kennzColIndex = 0;
 
-    // Suche Spaltenkopf mit "Kennz." zur Spaltenausrichtung
+    // Finde den exakten Spaltenkopf "Kennz."
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -314,27 +313,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Finde die Startzeile von oben nach unten: Suche nach dem ersten Schlauchtyp aus den Stammdaten
-    let startDataRow = headerRowIndex + 1;
-    for (let r = 0; r < targetRows.length; r++) {
-      const row = targetRows[r];
-      if (!Array.isArray(row)) continue;
-      let foundTypeMatch = false;
-      for (let c = 0; c < row.length; c++) {
-        const cellStr = String(row[c] || "").toUpperCase().trim();
-        if (normalizedValidTypes.includes(cellStr)) {
-          foundTypeMatch = true;
-          break;
-        }
-      }
-      if (foundTypeMatch) {
-        startDataRow = r; // Wir haben den ersten echten Schlauchtyp gefunden!
-        break;
-      }
-    }
+    // Starte strikt unterhalb des Spaltenkopfes (headerRowIndex + 1)
+    const dataStartIndex = headerRowIndex + 1;
 
-    // Durchlaufe alle Zeilen ab dem gefundenen Start bis zum absoluten Dateiende
-    for (let r = startDataRow; r < targetRows.length; r++) {
+    for (let r = dataStartIndex; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
@@ -345,9 +327,20 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // Prüfe, ob die Zeile komplett leer ist
-      const hasAnyValue = extractedSlice.some(val => String(val).trim() !== "");
-      if (!hasAnyValue) continue;
+      // STRIKTE VALIDIERUNG: Jede Zeile muss in mindestens einer Zelle einen gültigen Schlauchtyp enthalten!
+      let hasValidHoseType = false;
+      for (let i = 0; i < extractedSlice.length; i++) {
+        const cellStr = String(extractedSlice[i] || "").toUpperCase().trim();
+        if (normalizedValidTypes.includes(cellStr)) {
+          hasValidHoseType = true;
+          break;
+        }
+      }
+
+      // Wenn die Zeile keinen gültigen Schlauchtyp enthält (z.B. Zwischenüberschrift, leer, Unterschrift), überspringen!
+      if (!hasValidHoseType) {
+        continue;
+      }
 
       // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
       const originalKennz = String(extractedSlice[0] || "").trim();
@@ -570,6 +563,15 @@ window.openTopMenu = function() {
 window.closeTopMenu = function() {
   const menu = document.getElementById('top_menu_modal');
   if (menu) menu.classList.add('hidden');
+};
+
+window.openCacheClearManager = function() {
+  window.closeTopMenu();
+  const modal = document.getElementById('cache_clear_modal');
+  if (modal) {
+    document.querySelectorAll('.cache-checkbox').forEach(cb => cb.checked = false);
+    modal.classList.remove('hidden');
+  }
 };
 
 window.openCacheClearModal = function() {
