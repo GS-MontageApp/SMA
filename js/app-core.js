@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.36)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.37)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Systematisches Auffinden von "KENNZ." (mit zwei N), 
- * exaktes Extrahieren der 18 Spalten (A bis R) mit Erfassung der Original-Koordinaten 
- * für den späteren Export sowie stabiler Sticky Header.
+ * EXKLUSIVE ÄNDERUNG: Fehlertolerante, umlaut- und kodierungsunabhängige Suche nach "KENNZ." 
+ * (behandelt Umlaute wie ü/ä sauber durch String-Normalisierung), exakte 18-Spalten-Extraktion 
+ * mit Koordinaten-Mapping für den späteren Export sowie stabiler Sticky Header.
  */
 
 window.currentActiveCustomer = null;
@@ -40,7 +40,7 @@ window.AppData = {
           sheets: { 
             "Tabelle1": [
               ["Info", "Nicht relevant"],
-              ["KENNZ.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["KENNZ.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
               ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"]
             ]
           } 
@@ -207,7 +207,19 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Blatt-Erkennung über "KENNZ."
+  // Helper zur robusten Text-Normierung (fängt Umlaute ü->ue, ä->ae, ö->oe, ß->ss ab & ignoriert Groß/Klein/Leerzeichen)
+  function normalizeText(txt) {
+    if (!txt) return "";
+    return String(txt)
+      .toUpperCase()
+      .replace(/Ä/g, "AE")
+      .replace(/Ö/g, "OE")
+      .replace(/Ü/g, "UE")
+      .replace(/ß/g, "SS")
+      .trim();
+  }
+
+  // 1. Blatt-Erkennung über fehlertoleranten Scan
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
@@ -219,10 +231,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (!Array.isArray(rows)) continue;
 
       let hasKennz = false;
-      for (let r = 0; r < Math.min(rows.length, 25); r++) {
+      for (let r = 0; r < rows.length; r++) {
         if (!Array.isArray(rows[r])) continue;
-        const rowStr = rows[r].join(' ').toUpperCase();
-        if (rowStr.includes('KENNZ.')) {
+        const rowNormalized = rows[r].map(c => normalizeText(c)).join(' ');
+        if (rowNormalized.includes('KENNZ') || rowNormalized.includes('KENNZEICHEN')) {
           hasKennz = true;
           break;
         }
@@ -244,20 +256,21 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Extraktion ab "KENNZ." (Spalte 1 bis 18) mit Koordinaten-Gedächtnis für späteren Export
+  // 2. Fehlertolerante Extraktion ab "KENNZ." (Spalte 1 bis 18) inklusive Koordinaten-Mapping
   let rawData = [];
-  let coordinateMapping = []; // Speichert Original-Koordinaten für den Export-Manager
+  let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
+    // Suche nach der Zeile & Spalte mit "KENNZ" (mit Toleranz für Umlaute / Punkte)
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
       for (let c = 0; c < row.length; c++) {
-        const val = String(row[c] || '').trim().toUpperCase();
-        if (val === 'KENNZ.' || val === 'KENNZ') {
+        const valNorm = normalizeText(row[c]);
+        if (valNorm.includes('KENNZ')) {
           headerRowIndex = r;
           kennzColIndex = c;
           break;
@@ -285,6 +298,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         coordinateMapping.push(rowCoords);
       }
     } else {
+      // Fallback, falls absolut kein "KENNZ" gefunden wurde
       targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
         if (trimmed.some(cell => String(cell).trim() !== '')) {
@@ -297,7 +311,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
 
-  // Im globalen Fenster für den späteren Export / Bearbeitung hinterlegen
   window.currentActiveCoordinateMapping = coordinateMapping;
 
   // 3. Rendern auf die Bühne mit Sticky Header
