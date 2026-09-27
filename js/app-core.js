@@ -1,11 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.45)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.46)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Exakte Abbildung der Excel-Vorlage (Zeilen 1-4 als Metadaten-Block,
- * Zeile 4 als Spaltenkopf, Parsen der echten Schläuche strikt ab Zeile 5).
- * Optimiert für mobile Endgeräte durch einklappbaren Metadaten-Vorspann für maximalen Scroll-Platz.
+ * EXKLUSIVE ÄNDERUNG: Fehlertolerante Suche nach "Kennz." (Groß-/Kleinschreibung & Punkt-Inklusiv),
+ * exakter Start ab Zeile 5 (headerRowIndex + 1), robustes Stammdaten-Matching & Nennweiten-Joker.
  */
 
 window.currentActiveCustomer = null;
@@ -70,9 +69,9 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4 (Index 3): Echter Spaltenkopf
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5 (Index 4): Schlauch 1
-              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6 (Index 5): Schlauch 2
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf mit "Kennz."
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Start bei Schlauch 1
+              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
           } 
         }
@@ -287,23 +286,21 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Extrahieren der Metadaten aus Zeile 1-3 zur Anzeige im mobilen Vorspann
+  // 2. Metadaten extrahieren für den Vorspann
   let kundeVal = "-";
   let versionVal = "1";
   let anlageVal = "-";
 
   if (targetRows && Array.isArray(targetRows)) {
-    if (targetRows.length > 0 && Array.isArray(targetRows[0])) {
-      // Suche nach Kunden/Betreiber Info
-      for (let r = 0; r < Math.min(targetRows.length, 4); r++) {
-        const row = targetRows[r];
-        for (let c = 0; c < row.length; c++) {
-          const val = String(row[c] || "").trim();
-          const valNorm = normalizeText(val);
-          if (valNorm === "KUNDE" && row[c+1]) kundeVal = String(row[c+1]);
-          if (valNorm.includes("VERSION") && row[c+1]) versionVal = String(row[c+1]);
-          if (valNorm === "ANLAGE" && row[c+1]) anlageVal = String(row[c+1]);
-        }
+    for (let r = 0; r < Math.min(targetRows.length, 4); r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const val = String(row[c] || "").trim();
+        const valNorm = normalizeText(val);
+        if (valNorm === "KUNDE" && row[c+1]) kundeVal = String(row[c+1]);
+        if (valNorm.includes("VERSION") && row[c+1]) versionVal = String(row[c+1]);
+        if (valNorm === "ANLAGE" && row[c+1]) anlageVal = String(row[c+1]);
       }
     }
   }
@@ -312,7 +309,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   document.getElementById('meta_version').textContent = versionVal;
   document.getElementById('meta_anlage').textContent = anlageVal !== "-" ? anlageVal : "Hubtisch 4";
 
-  // 3. Präzise Erkennung: Spaltenkopf in Zeile 4 (wo "KENNZ." steht), Daten ab Zeile 5 (Index 4)
+  // 3. Präzise Erkennung: Suche nach "KENNZ" oder "KENNZEICHEN" (deckt "Kennz." und "KENNZ." perfekt ab)
   let rawData = [];
   let coordinateMapping = [];
   
@@ -362,20 +359,17 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // Prüfe auf echte Daten (Schlauchtyp oder Nennweite) um Fußzeilen/Unterschriften (wie Zeile 25+) auszuschließen
+      // Prüfe auf echte Daten (Schlauchtyp oder Nennweite)
       const schlauchRaw = String(extractedSlice[1] || "").trim();
       const schlauchNorm = normalizeText(schlauchRaw);
       const nwVal = String(extractedSlice[2] || "").trim();
       const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
       const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
 
-      // Wenn kein Schlauch und keine NW -> Abbruch/Überspringen (z.B. Unterschriftsblock am Ende)
       if (!isDirectTypeMatch && !hasValidNW) {
-        // Prüfe ob es eine Leerzeile mitten im Dokument ist (dann weiterlaufen, sonst wenn wir im Footer sind, könnte man stoppen)
-        // Wir erlauben das Überspringen von Leerzeilen, prüfen aber ob wir im Footer sind (z.B. Text wie "Ersteller" in Spalte 0)
         const firstColText = normalizeText(extractedSlice[0]);
         if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG")) {
-          break; // Footer erreicht, Schleife beenden!
+          break; // Footer erreicht
         }
         continue;
       }
@@ -538,7 +532,6 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true) 
     modal.classList.add('hidden');
   };
 
-  modal.classList.add('hidden'); // Fix typo in close
   modal.classList.remove('hidden');
 };
 
