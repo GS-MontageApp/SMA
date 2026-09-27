@@ -1,10 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.46)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.47)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Greift beim Öffnen auf der Bühne kompromisslos und exklusiv nur auf das Array 
- * "Tabelle1" zu – jegliche andere Arrays werden ignoriert.
+ * Greift auf der Bühne starr, direkt und ausschließlich auf das Array "Tabelle1" zu.
  */
 
 window.currentActiveCustomer = null;
@@ -203,14 +202,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.saveSessionState();
 
   // ============================================================================
-  // KOMPROMISSLOSE DIREKT-SELEKTION: Wir greifen EXAKT auf "Tabelle1" zu.
-  // Das andere Array (Auswahlseite) wird vollkommen ignoriert.
+  // EXKLUSIVER ZUGRIFF: Wir lesen starr und ausnahmslos das Array "Tabelle1" aus.
+  // Das zweite Array ("Auswahlseite") wird absolut ignoriert.
   // ============================================================================
   let targetRows = null;
   if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
     targetRows = fileObj.sheets["Tabelle1"];
-  } else if (fileObj.rawData) {
-    targetRows = fileObj.rawData;
   }
 
   let rawData = [];
