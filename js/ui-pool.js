@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.17)
+ * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.18)
  * ============================================================================
  * Kapselt die UI-Rendering-Routinen für den Dateipool und die Kunden-Dateiliste.
  */
@@ -31,7 +31,7 @@ window.UIPool = {
       card.appendChild(infoDiv);
 
       const deleteBtn = document.createElement('button');
-      // Einheitlicher Rotton (analog zu "Benutzer wechseln")
+      // Kräftigerer Rotton (analog zu "Benutzer wechseln")
       deleteBtn.className = 'p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shrink-0 shadow-2xs';
       deleteBtn.title = 'Kunden löschen';
       deleteBtn.innerHTML = '🗑️';
@@ -74,7 +74,7 @@ window.UIPool = {
       card.appendChild(infoDiv);
 
       const delFileBtn = document.createElement('button');
-      // Korrigierter, einheitlicher Rotton analog zum Einstellungs-Menü
+      // Kräftigerer Rotton
       delFileBtn.className = 'absolute bottom-3 right-3 p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shadow-2xs';
       delFileBtn.title = 'Datei löschen';
       delFileBtn.innerHTML = '🗑️';
