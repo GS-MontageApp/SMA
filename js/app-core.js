@@ -1,11 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.33)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.34)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Beim Rendern der Tabelle auf der Bühne wird jede Zeile strikt 
- * nach 18 Spalten (entspricht Spalte A bis R) abgeschnitten, um unsichtbare 
- * Hilfsspalten und Auswahl-Listen zu ignorieren.
+ * EXKLUSIVE ÄNDERUNG: Strikte Begrenzung auf Spalte 1 bis 18 (Spalte A bis R) 
+ * gemäß Master-Katalog sowie ein robuster Sticky Header für die Tabelle auf der Bühne.
  */
 
 window.currentActiveCustomer = null;
@@ -38,7 +37,10 @@ window.AppData = {
           name: "Beispielschlauchliste.xlsx", 
           timestamp: nowStr, 
           sheets: { 
-            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]]
+            "Tabelle1": [
+              ["Kennz.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"]
+            ]
           } 
         }
       ]
@@ -203,13 +205,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Blatt-Erkennung (Suche nach der echten Tabelle, am besten "Tabelle1" oder anhand der Köpfe)
+  // 1. Blatt-Erkennung (Suche nach der echten Tabelle)
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
     let foundDataSheet = false;
 
-    // Wir scannen alle Blätter durch
     for (let i = 0; i < keys.length; i++) {
       const sheetName = keys[i];
       const rows = fileObj.sheets[sheetName];
@@ -223,12 +224,11 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         if (!Array.isArray(row)) continue;
         
         const rowString = row.join(' ').toLowerCase();
-        if (rowString.includes('schlauch-id') || 
-            rowString.includes('typ') || 
-            rowString.includes('länge') || 
+        if (rowString.includes('schlauch') || 
+            rowString.includes('kennz') || 
+            rowString.includes('nw') || 
             rowString.includes('druck') || 
-            rowString.includes('kunde') ||
-            rowString.includes('kennz')) {
+            rowString.includes('länge')) {
           hasRelevantHeaders = true;
           break;
         }
@@ -256,22 +256,17 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   
   if (targetRows && Array.isArray(targetRows)) {
     targetRows.forEach(row => {
-      // WICHTIG: Schneide die Zeile nach dem 18. Feld hart ab. 
-      // Alles ab Index 18 (Spalte S) wird komplett entfernt und ignoriert.
       let trimmedRow = row.slice(0, 18);
       
       const hasContent = trimmedRow.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
       if (!hasContent) return;
 
       const rowString = trimmedRow.join(' ').toLowerCase();
-      if (rowString.includes('kunde') || rowString.includes('anlage')) {
-        rawData.push(trimmedRow);
-        return;
-      }
-
-      if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
-        headerFound = true;
-        rawData.push(trimmedRow);
+      if (rowString.includes('kennz') || rowString.includes('schlauch')) {
+        if (!headerFound) {
+          headerFound = true;
+          rawData.push(trimmedRow);
+        }
         return;
       }
 
@@ -279,6 +274,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rawData.push(trimmedRow);
       }
     });
+
     if (rawData.length === 0) {
       rawData = targetRows.map(r => r.slice(0, 18));
     }
@@ -286,7 +282,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
 
-  // 3. Rendern auf die Bühne
+  // 3. Rendern auf die Bühne mit robustem Sticky Header
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -299,12 +295,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'overflow-x-auto h-[calc(100vh-170px)] bg-white shadow-none w-full';
+  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-170px)] bg-white shadow-none w-full relative';
 
   const table = document.createElement('table');
   table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700';
 
   const thead = document.createElement('thead');
+  // STICKY HEADER KLASSEN: sticky top-0, z-10, solider Hintergrund, damit dahinter nichts durchschimmert
   thead.className = 'sticky top-0 bg-slate-100 text-slate-800 font-bold border-b border-slate-300 shadow-xs z-10';
   
   const tbody = document.createElement('tbody');
@@ -316,7 +313,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
     row.forEach((cellVal) => {
       const cell = rowIndex === 0 ? document.createElement('th') : document.createElement('td');
-      cell.className = 'px-4 py-3 whitespace-nowrap ' + (rowIndex === 0 ? 'font-bold text-slate-700' : 'text-slate-600');
+      cell.className = 'px-4 py-3 whitespace-nowrap ' + (rowIndex === 0 ? 'font-bold text-slate-800 bg-slate-100' : 'text-slate-600');
       cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
       tr.appendChild(cell);
     });
