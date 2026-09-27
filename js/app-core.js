@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.45)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.46)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Greift auf der Bühne direkt und ausnahmslos auf "Tabelle1" zu.
+ * Greift beim Öffnen auf der Bühne kompromisslos und exklusiv nur auf das Array 
+ * "Tabelle1" zu – jegliche andere Arrays werden ignoriert.
  */
 
 window.currentActiveCustomer = null;
@@ -36,7 +37,8 @@ window.AppData = {
           name: "Beispielschlauchliste.xlsx", 
           timestamp: nowStr, 
           sheets: { 
-            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]]
+            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]],
+            "Auswahlseite": [["Auswahl", "Wert"], ["Option", "1"]]
           } 
         }
       ]
@@ -57,21 +59,12 @@ window.AppData = {
     }
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     
-    // Bereinige sheetsData, sodass absolut nur "Tabelle1" gespeichert wird
-    let cleanSheets = {};
-    if (sheetsData && sheetsData["Tabelle1"]) {
-      cleanSheets["Tabelle1"] = sheetsData["Tabelle1"];
-    } else if (sheetsData) {
-      const firstKey = Object.keys(sheetsData)[0];
-      cleanSheets["Tabelle1"] = sheetsData[firstKey] || [];
-    }
-
     const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
-      clients[clientName][existingIdx].sheets = cleanSheets;
+      if (sheetsData) clients[clientName][existingIdx].sheets = sheetsData;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, sheets: cleanSheets });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, sheets: sheetsData });
     }
     this.saveClients(clients);
   },
@@ -209,13 +202,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // STRIKTER ZUGRIFF: Direkt und ausnahmslos auf "Tabelle1" zugreifen
+  // ============================================================================
+  // KOMPROMISSLOSE DIREKT-SELEKTION: Wir greifen EXAKT auf "Tabelle1" zu.
+  // Das andere Array (Auswahlseite) wird vollkommen ignoriert.
+  // ============================================================================
   let targetRows = null;
   if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
     targetRows = fileObj.sheets["Tabelle1"];
-  } else if (fileObj.sheets) {
-    const firstKey = Object.keys(fileObj.sheets)[0];
-    targetRows = fileObj.sheets[firstKey];
   } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
