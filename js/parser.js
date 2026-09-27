@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.24)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.25)
  * ============================================================================
- * Extrahiert den Kundennamen exakt aus der rechten Nachbarzelle des Labels "Kunde".
+ * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
+ * den Namen aus der direkt rechts daneben liegenden Zelle.
  */
 
 window.ExcelParser = {
@@ -43,19 +44,19 @@ window.ExcelParser = {
           rawRows = jsonSheet;
         }
 
-        // Exakte Regel: Suche nach einer Zelle mit dem Wort "Kunde". Der Wert in der Zelle rechts daneben ist der Name.
+        // Exakte Suche nach dem Wort "Kunde" (Großes K, exakter String-Vergleich ohne unscharfe Suffixe)
         jsonSheet.forEach(row => {
           row.forEach((cellVal, colIdx) => {
-            if (cellVal && typeof cellVal === 'string') {
-              const text = cellVal.trim().toLowerCase();
+            if (cellVal !== undefined && cellVal !== null) {
+              const cellStr = String(cellVal).trim();
               
-              if (text.includes('kunde')) {
+              if (cellStr === "Kunde") {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundCustomer = String(row[colIdx + 1]).trim();
                 }
               }
 
-              if (text.includes('anlage')) {
+              if (cellStr === "Anlage" || cellStr === "Anlagenbezeichnung") {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundPlant = String(row[colIdx + 1]).trim();
                 }
@@ -65,7 +66,7 @@ window.ExcelParser = {
         });
       });
 
-      // Fallback für den Kundennamen, falls kein Label gefunden wurde
+      // Fallback für den Kundennamen, falls kein Label "Kunde" im Dokument gefunden wurde
       if (!foundCustomer) {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
