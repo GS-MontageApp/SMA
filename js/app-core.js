@@ -1,10 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.38)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.39)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Sorgt dafür, dass beim Öffnen auf der Bühne exklusiv "Tabelle1" angezeigt 
- * und die "Auswahlseite" im UI rigoros unterdrückt wird.
+ * Sucht beim Öffnen auf der Bühne exakt nach dem Arbeitsblatt "Tabelle1" (großes T)
+ * und blendet die "Auswahlseite" im UI rigoros aus.
  */
 
 window.currentActiveCustomer = null;
@@ -202,18 +202,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // EXKLUSIVE UI-FILTERUNG: Wir erzwingen absolut, dass "Auswahlseite" ignoriert wird
+  // EXKLUSIVE UI-FILTERUNG: Gezielte Suche nach "Tabelle1" (mit großem T)
   let targetRows = null;
   if (fileObj.sheets) {
     const sheetKeys = Object.keys(fileObj.sheets);
     
-    // Finde ein Blatt, das exakt "Tabelle1" oder "Tabelle 1" heißt
-    let validKey = sheetKeys.find(k => {
-      const lower = k.toLowerCase().replace(/\s+/g, '');
-      return lower === 'tabelle1' || lower === 'tabelle_1';
-    });
+    // 1. Exakter Treffer auf "Tabelle1" (sensitiv und insensitiv)
+    let validKey = sheetKeys.find(k => k === 'Tabelle1' || k.toLowerCase() === 'tabelle1');
 
-    // Falls kein Tabelle1 existiert, nimm das erste Blatt, das KEIN "auswahl" im Namen hat
+    // 2. Falls nicht gefunden, nimm das erste Blatt, das nicht "auswahl" im Namen hat
     if (!validKey) {
       validKey = sheetKeys.find(k => {
         const lower = k.toLowerCase();
@@ -221,7 +218,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       });
     }
 
-    // Letzter Ausweg: das allererste Blatt
+    // 3. Fallback: Erstes verfügbares Blatt
     if (!validKey && sheetKeys.length > 0) {
       validKey = sheetKeys[0];
     }
@@ -231,7 +228,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     }
   } 
   
-  // Rückwärtskompatibilität für ältere Cache-Objekte
+  // Abwärtskompatibilität für alte Cache-Einträge
   if (!targetRows && fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
