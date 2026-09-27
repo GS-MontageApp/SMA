@@ -1,12 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.44)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.45)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Zwingender Anker-Suchlauf nach "KENNZ." zur Bestimmung der Kopfzeile.
- * Der Parser filtert jeden Vorspann rigoros weg und scannt lückenlos ab der Zeile 
- * direkt unterhalb des gefundenen Headers. Verhindert jeglichen "Müll" in kleinen Listen 
- * und erfasst große Dateien fehlerfrei von Zeile 1 an.
+ * EXKLUSIVE ÄNDERUNG: Exakte Abbildung der Excel-Vorlage (Zeilen 1-4 als Metadaten-Block,
+ * Zeile 4 als Spaltenkopf, Parsen der echten Schläuche strikt ab Zeile 5).
+ * Optimiert für mobile Endgeräte durch einklappbaren Metadaten-Vorspann für maximalen Scroll-Platz.
  */
 
 window.currentActiveCustomer = null;
@@ -68,11 +67,12 @@ window.AppData = {
           timestamp: nowStr, 
           sheets: { 
             "Tabelle1": [
-              ["Kunde: Musterfirma GmbH", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-              ["Projekt: Hallenbad Sanierung", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-              ["KENNZ.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["16.1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"],
-              ["16.3", "4SH", "25", "DKOS", "DKOS", "2000", "0", "0", "420", "Sep. 25", "2", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 2", "Standard"]
+              ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
+              ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
+              ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4 (Index 3): Echter Spaltenkopf
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5 (Index 4): Schlauch 1
+              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6 (Index 5): Schlauch 2
             ]
           } 
         }
@@ -287,7 +287,32 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Präziser Header-Anker ("KENNZ.") + strikter Scan ausschließlich unterhalb des Headers
+  // 2. Extrahieren der Metadaten aus Zeile 1-3 zur Anzeige im mobilen Vorspann
+  let kundeVal = "-";
+  let versionVal = "1";
+  let anlageVal = "-";
+
+  if (targetRows && Array.isArray(targetRows)) {
+    if (targetRows.length > 0 && Array.isArray(targetRows[0])) {
+      // Suche nach Kunden/Betreiber Info
+      for (let r = 0; r < Math.min(targetRows.length, 4); r++) {
+        const row = targetRows[r];
+        for (let c = 0; c < row.length; c++) {
+          const val = String(row[c] || "").trim();
+          const valNorm = normalizeText(val);
+          if (valNorm === "KUNDE" && row[c+1]) kundeVal = String(row[c+1]);
+          if (valNorm.includes("VERSION") && row[c+1]) versionVal = String(row[c+1]);
+          if (valNorm === "ANLAGE" && row[c+1]) anlageVal = String(row[c+1]);
+        }
+      }
+    }
+  }
+
+  document.getElementById('meta_kunde').textContent = kundeVal !== "-" ? kundeVal : (clientName || "Hettich");
+  document.getElementById('meta_version').textContent = versionVal;
+  document.getElementById('meta_anlage').textContent = anlageVal !== "-" ? anlageVal : "Hubtisch 4";
+
+  // 3. Präzise Erkennung: Spaltenkopf in Zeile 4 (wo "KENNZ." steht), Daten ab Zeile 5 (Index 4)
   let rawData = [];
   let coordinateMapping = [];
   
@@ -295,7 +320,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
-    // Suche exakt nach der Kopfzeile mit "KENNZ."
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -310,77 +334,65 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== -1) break;
     }
 
-    if (headerRowIndex !== -1 && kennzColIndex !== -1) {
-      // Setze den offiziellen Master-Katalog als festen Sticky Header (Zeile 0)
-      rawData.push(window.MASTER_CATALOG_HEADERS);
-      let headerCoords = [];
-      for (let c = 0; c < 18; c++) {
-        headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
+    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback auf Zeile 4 (Index 3)
+    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback auf Spalte A
+
+    // Setze den offiziellen Master-Katalog als festen Sticky Header (Zeile 0 in der UI)
+    rawData.push(window.MASTER_CATALOG_HEADERS);
+    let headerCoords = [];
+    for (let c = 0; c < 18; c++) {
+      headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
+    }
+    coordinateMapping.push(headerCoords);
+
+    let autoIncrementId = 1;
+    const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
+
+    // Exakter Start strikt ab Zeile 5 (headerRowIndex + 1) bis zum Ende
+    const dataStartIndex = headerRowIndex + 1;
+
+    for (let r = dataStartIndex; r < targetRows.length; r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+
+      let extractedSlice = [];
+      let rowCoords = [];
+      for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
+        extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+        rowCoords.push({ originalRow: r, originalCol: c });
       }
-      coordinateMapping.push(headerCoords);
 
-      let autoIncrementId = 1;
-      const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
+      // Prüfe auf echte Daten (Schlauchtyp oder Nennweite) um Fußzeilen/Unterschriften (wie Zeile 25+) auszuschließen
+      const schlauchRaw = String(extractedSlice[1] || "").trim();
+      const schlauchNorm = normalizeText(schlauchRaw);
+      const nwVal = String(extractedSlice[2] || "").trim();
+      const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
+      const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
 
-      // Scan beginnt EXAKT und AUSSCHLIESSLICH unterhalb der gefundenen Header-Zeile
-      for (let r = headerRowIndex + 1; r < targetRows.length; r++) {
-        const row = targetRows[r];
-        if (!Array.isArray(row)) continue;
-
-        let extractedSlice = [];
-        let rowCoords = [];
-        for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
-          extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
-          rowCoords.push({ originalRow: r, originalCol: c });
+      // Wenn kein Schlauch und keine NW -> Abbruch/Überspringen (z.B. Unterschriftsblock am Ende)
+      if (!isDirectTypeMatch && !hasValidNW) {
+        // Prüfe ob es eine Leerzeile mitten im Dokument ist (dann weiterlaufen, sonst wenn wir im Footer sind, könnte man stoppen)
+        // Wir erlauben das Überspringen von Leerzeilen, prüfen aber ob wir im Footer sind (z.B. Text wie "Ersteller" in Spalte 0)
+        const firstColText = normalizeText(extractedSlice[0]);
+        if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG")) {
+          break; // Footer erreicht, Schleife beenden!
         }
-
-        // VALIDIERUNG (Stammdaten-Abgleich & Nennweiten-Heuristik)
-        const schlauchRaw = String(extractedSlice[1] || "").trim();
-        const schlauchNorm = normalizeText(schlauchRaw);
-        
-        const nwVal = String(extractedSlice[2] || "").trim();
-        const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
-
-        const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
-
-        // Wenn weder Typ noch Nennweite valide sind -> verwerfen (kein echter Schlauch / Vorlagen-Leerzeile / Müll)
-        if (!isDirectTypeMatch && !hasValidNW) {
-          continue;
-        }
-
-        // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
-        const originalKennz = String(extractedSlice[0] || "").trim();
-        if (originalKennz === "") {
-          extractedSlice[0] = String(autoIncrementId++);
-        } else {
-          const numVal = parseInt(originalKennz, 10);
-          if (!isNaN(numVal)) {
-            autoIncrementId = Math.max(autoIncrementId, numVal + 1);
-          }
-        }
-
-        rawData.push(extractedSlice);
-        coordinateMapping.push(rowCoords);
+        continue;
       }
-    } else {
-      // Fallback falls kein KENNZ. gefunden wurde
-      rawData.push(window.MASTER_CATALOG_HEADERS);
-      let fallbackId = 1;
-      const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
 
-      targetRows.forEach((row, rIdx) => {
-        let trimmed = row.slice(0, 18);
-        const schlauchNorm = normalizeText(trimmed[1]);
-        const hasValidNW = String(trimmed[2] || "").trim() !== "" && !isNaN(Number(trimmed[2]));
-
-        if (schlauchNorm !== "" || hasValidNW) {
-          if (String(trimmed[0] || "").trim() === "") {
-            trimmed[0] = String(fallbackId++);
-          }
-          rawData.push(trimmed);
-          coordinateMapping.push(trimmed.map((_, cIdx) => ({ originalRow: rIdx, originalCol: cIdx })));
+      // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
+      const originalKennz = String(extractedSlice[0] || "").trim();
+      if (originalKennz === "") {
+        extractedSlice[0] = String(autoIncrementId++);
+      } else {
+        const numVal = parseInt(originalKennz, 10);
+        if (!isNaN(numVal)) {
+          autoIncrementId = Math.max(autoIncrementId, numVal + 1);
         }
-      });
+      }
+
+      rawData.push(extractedSlice);
+      coordinateMapping.push(rowCoords);
     }
   } else {
     rawData = [window.MASTER_CATALOG_HEADERS, ["Info", "Keine Tabellendaten verfügbar"]];
@@ -388,7 +400,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit Sticky Header
+  // 4. Rendern auf die Bühne mit Sticky Header
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -401,7 +413,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-170px)] bg-white shadow-none w-full relative';
+  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-230px)] sm:h-[calc(100vh-180px)] bg-white shadow-none w-full relative';
 
   const table = document.createElement('table');
   table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700';
@@ -526,6 +538,7 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true) 
     modal.classList.add('hidden');
   };
 
+  modal.classList.add('hidden'); // Fix typo in close
   modal.classList.remove('hidden');
 };
 
