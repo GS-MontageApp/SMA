@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.23)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.24)
  * ============================================================================
- * Extrahiert intelligent Kunde & Anlage und bereinigt den Kundennamen 
- * von technischen Suffixen (wie TKS_{FBA5} etc.).
+ * Extrahiert den Kundennamen exakt aus der rechten Nachbarzelle des Labels "Kunde".
  */
 
 window.ExcelParser = {
@@ -44,18 +43,19 @@ window.ExcelParser = {
           rawRows = jsonSheet;
         }
 
+        // Exakte Regel: Suche nach einer Zelle mit dem Wort "Kunde". Der Wert in der Zelle rechts daneben ist der Name.
         jsonSheet.forEach(row => {
           row.forEach((cellVal, colIdx) => {
             if (cellVal && typeof cellVal === 'string') {
               const text = cellVal.trim().toLowerCase();
               
-              if (text === 'kunde' || text === 'kundenname') {
+              if (text.includes('kunde')) {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundCustomer = String(row[colIdx + 1]).trim();
                 }
               }
 
-              if (text === 'anlage' || text === 'anlagenbezeichnung') {
+              if (text.includes('anlage')) {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundPlant = String(row[colIdx + 1]).trim();
                 }
@@ -65,19 +65,12 @@ window.ExcelParser = {
         });
       });
 
+      // Fallback für den Kundennamen, falls kein Label gefunden wurde
       if (!foundCustomer) {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      // Strikte Bereinigung des Kundennamens von angehängten technischen Suffixen / Klammern / IDs
-      if (foundCustomer) {
-        // Entfernt alles ab geschweiften Klammern {..., TKS_{...} etc.
-        foundCustomer = foundCustomer.replace(/[{[].*?[}\]]/g, '').trim();
-        // Entfernt doppelte Leerzeichen
-        foundCustomer = foundCustomer.replace(/\s+/g, ' ');
-      }
-
-      // Filterung der Tabellendaten
+      // Filterung & Strukturierung der Tabellenzeilen
       let filteredRows = [];
       let headerFound = false;
 
