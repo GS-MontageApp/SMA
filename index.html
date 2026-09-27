@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.0 === -->
+  <!-- === SMA v0.1.1 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.0</title>
+  <title id="page-title">Schlauchmanagement v0.1.1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.0">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.1">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -63,6 +63,11 @@
       },
       saveClients: function(data) {
         localStorage.setItem('sma_clients_data', JSON.stringify(data));
+      },
+      hasFile: function(clientName, fileName) {
+        let clients = this.getClients();
+        if (!clients[clientName]) return false;
+        return clients[clientName].includes(fileName);
       },
       addFileToClient: function(clientName, fileName) {
         let clients = this.getClients();
@@ -121,6 +126,44 @@
       }
     };
 
+    // Einheitliches System-Overlay für Meldungen & Sicherheitsabfragen
+    window.showSystemModal = function(title, message, onConfirm, showCancel = true) {
+      const modal = document.getElementById('system_generic_modal');
+      const titleEl = document.getElementById('system_modal_title');
+      const msgEl = document.getElementById('system_modal_message');
+      const confirmBtn = document.getElementById('system_modal_confirm_btn');
+      const cancelBtn = document.getElementById('system_modal_cancel_btn');
+
+      if (!modal) return;
+
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+
+      if (showCancel) {
+        cancelBtn.classList.remove('hidden');
+      } else {
+        cancelBtn.classList.add('hidden');
+      }
+
+      // Event-Listener bereinigen und neu setzen
+      const newConfirmBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+      newConfirmBtn.onclick = function() {
+        modal.classList.add('hidden');
+        if (typeof onConfirm === 'function') onConfirm();
+      };
+
+      cancelBtn.onclick = function() {
+        modal.classList.add('hidden');
+      };
+
+      modal.classList.remove('hidden');
+    };
+
+    // Globaler Zwischenspeicher für den aktiven Import-Vorgang
+    let pendingImportData = null;
+
     // Excel-Upload & automatisches Auslesen des Kundennamens
     window.handleExcelImport = function(event) {
       const file = event.target.files[0];
@@ -141,7 +184,6 @@
             jsonSheet.forEach(row => {
               row.forEach((cellVal, colIdx) => {
                 if (cellVal && typeof cellVal === 'string' && cellVal.trim().toLowerCase() === 'kunde') {
-                  // Prüfe Zelle rechts daneben
                   if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                     foundCustomer = String(row[colIdx + 1]).trim();
                   }
@@ -150,20 +192,36 @@
             });
           });
 
-          // Fallback falls kein "Kunde" im Tabelleninhalt gefunden wurde: Nutze Dateinamen
           if (!foundCustomer) {
             foundCustomer = file.name.replace(/\.[^/.]+$/, "");
           }
 
-          // Im LocalStorage abspeichern und zuordnen
-          window.AppData.addFileToClient(foundCustomer, file.name);
-          window.renderDateipool();
+          pendingImportData = { client: foundCustomer, filename: file.name };
 
-          alert(`Erfolgreich importiert!\nKunde: ${foundCustomer}\nDatei: ${file.name}`);
-          window.switchApp('dateipool', 'Dateipool');
+          // Sicherheitsprüfung: Existiert die Datei bereits beim Kunden?
+          if (window.AppData.hasFile(foundCustomer, file.name)) {
+            window.showSystemModal(
+              'Datei bereits vorhanden',
+              `Die Datei "${file.name}" existiert bereits für ${foundCustomer}. Möchten Sie die vorhandene Version überschreiben?`,
+              function() {
+                // Bestätigt: Überschreiben
+                window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename);
+                window.renderDateipool();
+                window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${pendingImportData.client} aktualisiert.`, null, false);
+                window.switchApp('dateipool', 'Dateipool');
+              }
+            );
+          } else {
+            // Direkt speichern
+            window.AppData.addFileToClient(foundCustomer, file.name);
+            window.renderDateipool();
+            window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${foundCustomer}\nDatei: ${file.name}`, null, false);
+            window.switchApp('dateipool', 'Dateipool');
+          }
+
         } catch (err) {
           console.error(err);
-          alert('Fehler beim Einlesen der Excel-Datei. Bitte prüfen Sie das Dateiformat.');
+          window.showSystemModal('Fehler', 'Fehler beim Einlesen der Excel-Datei. Bitte prüfen Sie das Dateiformat.', null, false);
         } finally {
           event.target.value = ''; // Reset Input
         }
@@ -183,7 +241,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.1.0"></script>
+  <script src="js/auth.js?v=v0.1.1"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -265,6 +323,24 @@
     </div>
   </footer>
 
+  <!-- Einheitliches System-Modal (Overlay für Meldungen & Sicherheitsabfragen) -->
+  <div id="system_generic_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div class="border-b pb-3">
+        <h3 id="system_modal_title" class="font-bold text-base text-slate-800">Hinweis</h3>
+      </div>
+      <p id="system_modal_message" class="text-xs text-slate-600 whitespace-pre-line leading-relaxed"></p>
+      <div class="flex gap-2 pt-2">
+        <button id="system_modal_cancel_btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition-colors">
+          Abbrechen
+        </button>
+        <button id="system_modal_confirm_btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors shadow-sm">
+          Bestätigen
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modals (Einstellungen / Zahnrad-Menü) -->
   <div id="top_menu_modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-2xl p-6 max-w-lg w-full space-y-4 text-slate-800 shadow-2xl max-h-[85vh] flex flex-col">
@@ -273,7 +349,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.0</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.1</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
