@@ -1,11 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.42)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.43)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Lückenloser Scan ab Zeile 1 (kein Verlust der ersten Schläuche),
- * Übernahme bestehender Original-Kennzeichnungen (z.B. "16.1") mit Auto-Fallback,
- * sowie zweistufige Validierung (Direktabgleich + Nennweiten-Heuristik als Rettungsanker).
+ * EXKLUSIVE ÄNDERUNG: Automatische Erkennung der Spalte für "KENNZ." und "Schlauch".
+ * Der Parser ignoriert den oberen Vorspann vollständig und startet dynamisch 
+ * exakt in der Zeile, in der der *erste echte Schlauch* (oder eine gültige Nennweite) auftaucht. 
+ * Das garantiert, dass auch kleine Listen (ab 2 Schläuchen) oder Listen mit gelöschten Zeilen sofort greifen.
  */
 
 window.currentActiveCustomer = null;
@@ -67,11 +68,12 @@ window.AppData = {
           timestamp: nowStr, 
           sheets: { 
             "Tabelle1": [
-              ["Info", "Nicht relevant"],
+              ["Kunde: Musterfirma GmbH", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+              ["Projekt: Hallenbad Sanierung", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
               ["KENNZ.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["16.1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"], // Schlauch 1 mit Original-Kennz
-              ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Leerzeile (wird gefiltert)
-              ["16.3", "4SH", "25", "DKOS", "DKOS", "2000", "0", "0", "420", "Sep. 25", "2", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 2", "Standard"]  // Schlauch 2 mit Original-Kennz
+              ["16.1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"],
+              ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Leerzeile (gelöschter Schlauch)
+              ["16.3", "4SH", "25", "DKOS", "DKOS", "2000", "0", "0", "420", "Sep. 25", "2", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 2", "Standard"]
             ]
           } 
         }
@@ -249,7 +251,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       .trim();
   }
 
-  // 1. Blatt-Erkennung über Scan nach "KENNZ."
+  // 1. Blatt-Erkennung
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
@@ -286,7 +288,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Vollständiger Scan ab Zeile 1 mit Kennz.-Übernahme und Nennweiten-Heuristik
+  // 2. Intelligenter Spalten- und Zeilenscan (Finde "KENNZ." für Spaltenstart, starte bei echtem Schlauchfund)
   let rawData = [];
   let coordinateMapping = [];
   
@@ -294,6 +296,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
+    // Finde Spalte von "KENNZ."
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -308,74 +311,78 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== -1) break;
     }
 
-    if (headerRowIndex !== -1 && kennzColIndex !== -1) {
-      // Setze den offiziellen Master-Katalog als Tabellenkopf (Zeile 0)
-      rawData.push(window.MASTER_CATALOG_HEADERS);
-      let headerCoords = [];
-      for (let c = 0; c < 18; c++) {
-        headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
+    if (kennzColIndex === -1) kennzColIndex = 0; // Fallback auf Spalte A
+
+    // Setze den offiziellen Master-Katalog als Tabellenkopf (Zeile 0)
+    rawData.push(window.MASTER_CATALOG_HEADERS);
+    let headerCoords = [];
+    for (let c = 0; c < 18; c++) {
+      headerCoords.push({ originalRow: headerRowIndex !== -1 ? headerRowIndex : 0, originalCol: kennzColIndex + c });
+    }
+    coordinateMapping.push(headerCoords);
+
+    let autoIncrementId = 1;
+    const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
+
+    // Lückenloser Scan ab Zeile 0 (ignoriert obigen Vorspann durch strenge Schlauch- & NW-Heuristik)
+    const scanStartIndex = headerRowIndex !== -1 ? headerRowIndex + 1 : 0;
+
+    for (let r = scanStartIndex; r < targetRows.length; r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+
+      let extractedSlice = [];
+      let rowCoords = [];
+      for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
+        extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+        rowCoords.push({ originalRow: r, originalCol: c });
       }
-      coordinateMapping.push(headerCoords);
 
-      let autoIncrementId = 1;
-      const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
+      // HEURISTIK-PRÜFUNG:
+      const schlauchRaw = String(extractedSlice[1] || "").trim();
+      const schlauchNorm = normalizeText(schlauchRaw);
+      
+      // Nennweiten-Joker (Spalte 3 / Index 2: NW) auf numerischen Inhalt prüfen
+      const nwVal = String(extractedSlice[2] || "").trim();
+      const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
 
-      // Lückenloser Scan ab Zeile 1 (bzw. headerRowIndex + 1) bis zum absoluten Dateiende
-      for (let r = headerRowIndex + 1; r < targetRows.length; r++) {
-        const row = targetRows[r];
-        if (!Array.isArray(row)) continue;
+      const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
 
-        let extractedSlice = [];
-        let rowCoords = [];
-        for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
-          extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
-          rowCoords.push({ originalRow: r, originalCol: c });
-        }
-
-        // HEURISTIK-PRÜFUNG:
-        const schlauchRaw = String(extractedSlice[1] || "").trim();
-        const schlauchNorm = normalizeText(schlauchRaw);
-        
-        // Nennweiten-Joker (Spalte 3 / Index 2: NW) auf numerischen Inhalt prüfen
-        const nwVal = String(extractedSlice[2] || "").trim();
-        const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
-
-        const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
-
-        // Wenn weder Typ übereinstimmt noch eine gültige Nennweite vorhanden ist -> leere Zeile / Störblock -> Überspringen
-        if (!isDirectTypeMatch && !hasValidNW) {
-          continue;
-        }
-
-        // KENNZEICHNUNG (Spalte 1 / Index 0): Übernehme Originalwert (z.B. "16.1"), falls vorhanden; sonst Auto-Increment
-        const originalKennz = String(extractedSlice[0] || "").trim();
-        if (originalKennz === "") {
-          extractedSlice[0] = String(autoIncrementId++);
-        }
-
-        rawData.push(extractedSlice);
-        coordinateMapping.push(rowCoords);
+      // Wenn weder Typ übereinstimmt noch eine gültige Nennweite vorhanden ist -> überspringen (kein echter Schlauch / Vorlagenzeile)
+      if (!isDirectTypeMatch && !hasValidNW) {
+        continue;
       }
-    } else {
-      // Fallback
-      rawData.push(window.MASTER_CATALOG_HEADERS);
-      let fallbackId = 1;
-      const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
 
+      // KENNZEICHNUNG (Spalte 1 / Index 0): Übernehme Originalwert (z.B. "16.1"), falls vorhanden; sonst Auto-Increment
+      const originalKennz = String(extractedSlice[0] || "").trim();
+      if (originalKennz === "") {
+        extractedSlice[0] = String(autoIncrementId++);
+      } else {
+        // Versuche Auto-Increment anzupassen falls numerisch
+        const numVal = parseInt(originalKennz, 10);
+        if (!isNaN(numVal)) {
+          autoIncrementId = Math.max(autoIncrementId, numVal + 1);
+        }
+      }
+
+      rawData.push(extractedSlice);
+      coordinateMapping.push(rowCoords);
+    }
+
+    // Fallback falls gar kein Schlauch gefunden wurde
+    if (rawData.length === 1) {
       targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
-        const schlauchNorm = normalizeText(trimmed[1]);
-        const hasValidNW = String(trimmed[2] || "").trim() !== "" && !isNaN(Number(trimmed[2]));
-
-        if (schlauchNorm !== "" || hasValidNW) {
+        if (trimmed.some(cell => String(cell).trim() !== '')) {
           if (String(trimmed[0] || "").trim() === "") {
-            trimmed[0] = String(fallbackId++);
+            trimmed[0] = String(autoIncrementId++);
           }
           rawData.push(trimmed);
           coordinateMapping.push(trimmed.map((_, cIdx) => ({ originalRow: rIdx, originalCol: cIdx })));
         }
       });
     }
+
   } else {
     rawData = [window.MASTER_CATALOG_HEADERS, ["Info", "Keine Tabellendaten verfügbar"]];
   }
