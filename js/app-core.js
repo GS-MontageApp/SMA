@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.19)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.20)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -383,4 +383,52 @@ window.openTopMenu = function() {
 window.closeTopMenu = function() {
   const menu = document.getElementById('top_menu_modal');
   if (menu) menu.classList.add('hidden');
+};
+
+// Granulares Cache-Lösch-Modal öffnen (Checkboxen standardmäßig leer)
+window.openCacheClearModal = function() {
+  window.closeTopMenu();
+  const modal = document.getElementById('cache_clear_modal');
+  if (modal) {
+    // Checkboxen bei jedem Öffnen explizit zurücksetzen (unchecked)
+    document.querySelectorAll('.cache-checkbox').forEach(cb => cb.checked = false);
+    modal.classList.remove('hidden');
+  }
+};
+
+window.closeCacheClearModal = function() {
+  const modal = document.getElementById('cache_clear_modal');
+  if (modal) modal.classList.add('hidden');
+};
+
+// Ausgewählte Cache-Bereiche bereinigen
+window.executeGranularCacheClear = function() {
+  const clearSession = document.getElementById('chk_session')?.checked;
+  const clearClients = document.getElementById('chk_clients')?.checked;
+  const clearAuth = document.getElementById('chk_auth')?.checked;
+  const clearTheme = document.getElementById('chk_theme')?.checked;
+
+  if (!clearSession && !clearClients && !clearAuth && !clearTheme) {
+    window.showSystemModal('Hinweis', 'Es wurde keine Option ausgewählt. Es wurden keine Daten gelöscht.', null, false);
+    window.closeCacheClearModal();
+    return;
+  }
+
+  if (clearSession) {
+    localStorage.removeItem('sma_session_state');
+  }
+  if (clearClients) {
+    localStorage.removeItem('sma_clients_data');
+  }
+  if (clearAuth) {
+    localStorage.removeItem('sma_current_user');
+  }
+  if (clearTheme) {
+    localStorage.removeItem('schlauchmanagement_theme');
+  }
+
+  window.closeCacheClearModal();
+  window.showSystemModal('Erfolgreich', 'Die ausgewählten Cache-Bereiche wurden bereinigt. Die App wird neu geladen.', function() {
+    window.location.reload();
+  }, false);
 };
