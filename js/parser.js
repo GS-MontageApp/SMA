@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.26)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
  * ============================================================================
  * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
  * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
@@ -93,7 +93,6 @@ window.ExcelParser = {
         filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
-      // Der Kundenname wird nun strikt pur (ohne angehängte Anlage) übernommen
       return {
         client: foundCustomer,
         filename: fileName,
