@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.16)
+ * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.17)
  * ============================================================================
- * Kapselt die UI-Rendering-Routinen für den Dateipool und die Kunden-Dateiliste,
- * um die index.html nachhaltig zu verschlanken.
+ * Kapselt die UI-Rendering-Routinen für den Dateipool und die Kunden-Dateiliste.
  */
 
 window.UIPool = {
@@ -32,7 +31,8 @@ window.UIPool = {
       card.appendChild(infoDiv);
 
       const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm shrink-0';
+      // Einheitlicher Rotton (analog zu "Benutzer wechseln")
+      deleteBtn.className = 'p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shrink-0 shadow-2xs';
       deleteBtn.title = 'Kunden löschen';
       deleteBtn.innerHTML = '🗑️';
       deleteBtn.onclick = (e) => {
@@ -69,12 +69,13 @@ window.UIPool = {
       card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName, true);
 
       const infoDiv = document.createElement('div');
-      infoDiv.className = 'flex-1 min-w-0 pr-8';
+      infoDiv.className = 'flex-1 min-w-0 pr-12';
       infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base break-all">${fileName}</h3><p class="text-xs text-slate-500 mt-1">Zuletzt lokal gespeichert: ${timestamp}</p>`;
       card.appendChild(infoDiv);
 
       const delFileBtn = document.createElement('button');
-      delFileBtn.className = 'absolute bottom-3 right-3 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
+      // Korrigierter, einheitlicher Rotton analog zum Einstellungs-Menü
+      delFileBtn.className = 'absolute bottom-3 right-3 p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shadow-2xs';
       delFileBtn.title = 'Datei löschen';
       delFileBtn.innerHTML = '🗑️';
       delFileBtn.onclick = (e) => {
@@ -83,7 +84,6 @@ window.UIPool = {
       };
       card.appendChild(delFileBtn);
 
-      listContainer.appendChild(delFileBtn); // Korrekte Einbindung im DOM
       listContainer.appendChild(card);
     });
   }
