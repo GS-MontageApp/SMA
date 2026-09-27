@@ -1,584 +1,80 @@
-<!DOCTYPE html>
-<html lang="de" class="h-full">
-<head>
-  <!-- === SMA v0.1.8 === -->
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+/**
+ * ============================================================================
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.9)
+ * ============================================================================
+ * Verantwortlich für:
+ * - Einlesen und Verarbeiten von .xls / .xlsx-Dateien via SheetJS
+ * - Strenge Vorab-Validierung (Crash-Schutz & Dateigrößen-Check)
+ * - Automatisches Extrahieren des Kundennamens (Schlüsselwort "Kunde")
+ * - Bereitstellung der echten Tabellendaten für die Aktive Bearbeitungs-Bühne
+ * ============================================================================
+ */
 
-  <!-- Anti-Cache Direktiven -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
+window.ExcelParser = {
+  validateFile: function(file) {
+    if (!file) {
+      throw new Error("Keine Datei ausgewählt.");
+    }
+    const validExtensions = ['.xls', '.xlsx'];
+    const fileNameLower = file.name.toLowerCase();
+    const isValidExt = validExtensions.some(ext => fileNameLower.endsWith(ext));
+    
+    if (!isValidExt) {
+      throw new Error("Ungültiges Dateiformat. Bitte nur .xls oder .xlsx Dateien verwenden.");
+    }
 
-  <title id="page-title">Schlauchmanagement v0.1.8</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS für Excel-Parsing -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.8">
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a">
+    const maxSize = 650 * 1024;
+    if (file.size > maxSize) {
+      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz mobiler Browser limitiert.");
+    }
 
-  <!-- Globale UI- & Ansichtssteuerung -->
-  <script>
-    window.setTheme = function(themeName) {
-      const body = document.body;
-      if (!body) return;
-      const btnStandard = document.getElementById('theme_btn_standard');
-      const btnGs = document.getElementById('theme_btn_gs');
-      if (themeName === 'gs') {
-        body.classList.add('bg-slate-900', 'text-slate-100');
-        body.classList.remove('bg-slate-100', 'text-slate-800');
-        if (btnGs) btnGs.className = 'p-2.5 rounded-xl text-xs font-bold border-2 border-yellow-400 bg-slate-900 text-yellow-400 shadow-md transition-all text-center';
-        if (btnStandard) btnStandard.className = 'p-2.5 rounded-xl text-xs font-bold border border-slate-600 bg-slate-800 text-slate-300 transition-all text-center';
-      } else {
-        body.classList.remove('bg-slate-900', 'text-slate-100');
-        body.classList.add('bg-slate-100', 'text-slate-800');
-        if (btnStandard) btnStandard.className = 'p-2.5 rounded-xl text-xs font-bold border-2 border-indigo-600 bg-white text-indigo-700 shadow-md transition-all text-center';
-        if (btnGs) btnGs.className = 'p-2.5 rounded-xl text-xs font-bold border border-slate-300 bg-slate-100 text-slate-700 transition-all text-center';
-      }
-      localStorage.setItem('schlauchmanagement_theme', themeName);
-    };
+    return true;
+  },
 
-    window.switchApp = function(viewId, titleText) {
-      document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
-      const target = document.getElementById('view-' + viewId);
-      if (target) target.classList.remove('hidden');
-
-      const titleEl = document.getElementById('header-title');
-      if (titleEl) titleEl.textContent = titleText;
-
-      // Footer-Status aktualisieren (nur auf der Bühne sichtbar oder leer in anderen Ansichten)
-      window.updateFooterActiveFile(viewId === 'buehne' ? window.currentActiveFileName : null);
-
-      if (viewId === 'dateipool') {
-        window.renderDateipool();
-      }
-    };
-
-    // Zentrale Datenverwaltung im LocalStorage
-    window.AppData = {
-      getClients: function() {
-        const stored = localStorage.getItem('sma_clients_data');
-        if (stored) {
-          try { return JSON.parse(stored); } catch(e) { console.error(e); }
-        }
-        const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        return {
-          "Kunde 1": [
-            { name: "Kunde 1 Schlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Kunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
-          ]
-        };
-      },
-      saveClients: function(data) {
-        localStorage.setItem('sma_clients_data', JSON.stringify(data));
-      },
-      hasFile: function(clientName, fileName) {
-        let clients = this.getClients();
-        if (!clients[clientName]) return false;
-        return clients[clientName].some(f => f.name === fileName);
-      },
-      addFileToClient: function(clientName, fileName, rawData) {
-        let clients = this.getClients();
-        if (!clients[clientName]) {
-          clients[clientName] = [];
-        }
-        const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        
-        const existingIdx = clients[clientName].findIndex(f => f.name === fileName);
-        if (existingIdx >= 0) {
-          clients[clientName][existingIdx].timestamp = nowStr;
-          clients[clientName][existingIdx].rawData = rawData;
-        } else {
-          clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
-        }
-        this.saveClients(clients);
-      },
-      removeFileFromClient: function(clientName, fileName) {
-        let clients = this.getClients();
-        if (clients[clientName]) {
-          clients[clientName] = clients[clientName].filter(f => f.name !== fileName);
-          this.saveClients(clients);
-        }
-      },
-      removeClient: function(clientName) {
-        let clients = this.getClients();
-        delete clients[clientName];
-        this.saveClients(clients);
-      }
-    };
-
-    let currentActiveCustomer = null;
-    let currentActiveFileName = null;
-
-    // Footer-Kachel aktualisieren (zeigt nur den reinen Dateinamen)
-    window.updateFooterActiveFile = function(fileName) {
-      const container = document.getElementById('file_tabs_container');
-      if (!container) return;
-      container.innerHTML = '';
-
-      if (fileName) {
-        const badge = document.createElement('div');
-        badge.className = 'bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-full truncate';
-        badge.innerHTML = `<span class="opacity-75 text-[10px] uppercase tracking-wider">Aktiv:</span> <span class="truncate">${fileName}</span>`;
-        container.appendChild(badge);
-      }
-    };
-
-    // Dateipool Kacheln rendern
-    window.renderDateipool = function() {
-      const container = document.getElementById('dateipool_grid');
-      if (!container) return;
-      container.innerHTML = '';
-      const clients = window.AppData.getClients();
-
-      const customerKeys = Object.keys(clients);
-      if (customerKeys.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 py-3 col-span-full text-center">Keine Kunden im Dateipool vorhanden.</p>';
-        return;
-      }
-
-      customerKeys.forEach(clientName => {
-        const fileList = clients[clientName] || [];
-        const fileCount = fileList.length;
-        const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between group';
-        
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1 cursor-pointer pr-2';
-        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base truncate">${clientName}</h3><p class="text-xs text-slate-400 mt-0.5">${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'}</p>`;
-        infoDiv.onclick = () => window.openCustomerFiles(clientName);
-        card.appendChild(infoDiv);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm shrink-0';
-        deleteBtn.title = 'Kunden löschen';
-        deleteBtn.innerHTML = '🗑️';
-        deleteBtn.onclick = (e) => {
-          e.stopPropagation();
-          window.confirmDeleteClient(clientName, fileCount);
-        };
-        card.appendChild(deleteBtn);
-
-        container.appendChild(card);
-      });
-    };
-
-    window.openCustomerFiles = function(customerName) {
-      currentActiveCustomer = customerName;
-      document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
-      const target = document.getElementById('view-customer-files');
-      if (target) target.classList.remove('hidden');
-
-      const titleEl = document.getElementById('header-title');
-      if (titleEl) titleEl.textContent = customerName;
-
-      window.updateFooterActiveFile(null);
-      window.renderCustomerFilesList();
-    };
-
-    window.renderCustomerFilesList = function() {
-      const listContainer = document.getElementById('customer_files_list');
-      if (!listContainer || !currentActiveCustomer) return;
-      listContainer.innerHTML = '';
-
-      const clients = window.AppData.getClients();
-      const files = clients[currentActiveCustomer] || [];
-
-      if (files.length === 0) {
-        listContainer.innerHTML = '<p class="text-xs text-slate-400 py-3 text-center">Keine Dateien vorhanden.</p>';
-        return;
-      }
-
-      files.forEach(fileObj => {
-        const fileName = fileObj.name;
-        const timestamp = fileObj.timestamp || 'Unbekannt';
-
-        const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex flex-col justify-between gap-3 cursor-pointer relative';
-        
-        card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName);
-
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1 min-w-0 pr-8';
-        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base break-all">${fileName}</h3><p class="text-xs text-slate-500 mt-1">Zuletzt lokal gespeichert: ${timestamp}</p>`;
-        card.appendChild(infoDiv);
-
-        const delFileBtn = document.createElement('button');
-        delFileBtn.className = 'absolute bottom-3 right-3 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
-        delFileBtn.title = 'Datei löschen';
-        delFileBtn.innerHTML = '🗑️';
-        delFileBtn.onclick = (e) => {
-          e.stopPropagation();
-          window.confirmDeleteFile(currentActiveCustomer, fileName);
-        };
-        card.appendChild(delFileBtn);
-
-        listContainer.appendChild(card);
-      });
-    };
-
-    // Aktive Bearbeitungs-Bühne: Edge-to-Edge Ansicht ohne äußere Ränder
-    window.openFileOnStage = function(clientName, fileName) {
-      const clients = window.AppData.getClients();
-      const fileList = clients[clientName] || [];
-      const fileObj = fileList.find(f => f.name === fileName);
-
-      if (!fileObj) {
-        window.showSystemModal('Fehler', 'Die angeforderte Datei konnte nicht gefunden werden.', null, false);
-        return;
-      }
-
-      currentActiveFileName = fileName;
-      const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
-
-      document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
-      const stageView = document.getElementById('view-buehne');
-      if (stageView) stageView.classList.remove('hidden');
-
-      const titleEl = document.getElementById('header-title');
-      if (titleEl) titleEl.textContent = `${clientName} / ${fileName}`;
-
-      // Footer mit Dateinamen aktualisieren
-      window.updateFooterActiveFile(fileName);
-
-      const container = document.getElementById('buehne_table_container');
-      if (!container) return;
-      container.innerHTML = '';
-
-      // Edge-to-Edge Wrapper ohne störende Abstände
-      const wrapper = document.createElement('div');
-      wrapper.className = 'overflow-x-auto h-[calc(100vh-170px)] bg-white shadow-none';
-
-      const table = document.createElement('table');
-      table.className = 'w-full text-left border-collapse text-xs text-slate-700';
-
-      const thead = document.createElement('thead');
-      thead.className = 'sticky top-0 bg-slate-100 text-slate-800 font-bold border-b border-slate-300 shadow-xs z-10';
+  parseFileBuffer: function(arrayBuffer, fileName) {
+    try {
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
       
-      const tbody = document.createElement('tbody');
-      tbody.className = 'divide-y divide-slate-100';
+      let foundCustomer = null;
+      let extractedRows = [];
 
-      rawData.forEach((row, rowIndex) => {
-        const tr = document.createElement('tr');
-        tr.className = rowIndex === 0 ? 'bg-slate-100' : 'hover:bg-slate-50/80 transition-colors';
-
-        row.forEach((cellVal) => {
-          const cell = rowIndex === 0 ? document.createElement('th') : document.createElement('td');
-          cell.className = 'px-3 py-2.5 whitespace-nowrap ' + (rowIndex === 0 ? 'font-bold text-slate-700' : 'text-slate-600');
-          cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
-          tr.appendChild(cell);
-        });
-
-        if (rowIndex === 0) {
-          thead.appendChild(tr);
-        } else {
-          tbody.appendChild(tr);
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        
+        if (jsonSheet.length > 0 && extractedRows.length === 0) {
+          extractedRows = jsonSheet;
         }
+
+        jsonSheet.forEach(row => {
+          row.forEach((cellVal, colIdx) => {
+            if (cellVal && typeof cellVal === 'string' && cellVal.trim().toLowerCase() === 'kunde') {
+              if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                foundCustomer = String(row[colIdx + 1]).trim();
+              }
+            }
+          });
+        });
       });
 
-      table.appendChild(thead);
-      table.appendChild(tbody);
-      wrapper.appendChild(table);
-      container.appendChild(wrapper);
-    };
-
-    window.confirmDeleteFile = function(clientName, fileName) {
-      window.showSystemModal(
-        'Datei löschen',
-        `Möchten Sie die Datei "${fileName}" wirklich unwiderruflich löschen?`,
-        function() {
-          window.AppData.removeFileFromClient(clientName, fileName);
-          window.renderCustomerFilesList();
-          window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
-        }
-      );
-    };
-
-    window.confirmDeleteClient = function(clientName, fileCount) {
-      window.showSystemModal(
-        'Kunden löschen',
-        `Möchten Sie wirklich den Kunden "${clientName}" und die zugehörigen ${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'} löschen?`,
-        function() {
-          window.AppData.removeClient(clientName);
-          window.renderDateipool();
-          window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
-        }
-      );
-    };
-
-    window.showSystemModal = function(title, message, onConfirm, showCancel = true) {
-      const modal = document.getElementById('system_generic_modal');
-      const titleEl = document.getElementById('system_modal_title');
-      const msgEl = document.getElementById('system_modal_message');
-      const confirmBtn = document.getElementById('system_modal_confirm_btn');
-      const cancelBtn = document.getElementById('system_modal_cancel_btn');
-
-      if (!modal) return;
-
-      titleEl.textContent = title;
-      msgEl.textContent = message;
-
-      if (showCancel) {
-        cancelBtn.classList.remove('hidden');
-      } else {
-        cancelBtn.classList.add('hidden');
+      if (!foundCustomer) {
+        foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      const newConfirmBtn = confirmBtn.cloneNode(true);
-      confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-      newConfirmBtn.onclick = function() {
-        modal.classList.add('hidden');
-        if (typeof onConfirm === 'function') onConfirm();
-      };
-
-      cancelBtn.onclick = function() {
-        modal.classList.add('hidden');
-      };
-
-      modal.classList.remove('hidden');
-    };
-
-    let pendingImportData = null;
-
-    window.handleExcelImport = function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      try {
-        window.ExcelParser.validateFile(file);
-      } catch (err) {
-        window.showSystemModal('Validierungsfehler', err.message, null, false);
-        event.target.value = '';
-        return;
+      if (extractedRows.length === 0) {
+        extractedRows = [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const parsed = window.ExcelParser.parseFileBuffer(e.target.result, file.name);
-          pendingImportData = parsed;
-
-          if (window.AppData.hasFile(parsed.client, parsed.filename)) {
-            window.showSystemModal(
-              'Datei bereits vorhanden',
-              `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
-              function() {
-                window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
-                window.renderDateipool();
-                window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${pendingImportData.client} aktualisiert.`, null, false);
-                window.switchApp('dateipool', 'Dateipool');
-              }
-            );
-          } else {
-            window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
-            window.renderDateipool();
-            window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${parsed.client}\nDatei: ${parsed.filename}`, null, false);
-            window.switchApp('dateipool', 'Dateipool');
-          }
-
-        } catch (err) {
-          console.error(err);
-          window.showSystemModal('Fehler', err.message, null, false);
-        } finally {
-          event.target.value = '';
-        }
+      return {
+        client: foundCustomer,
+        filename: fileName,
+        rawData: extractedRows
       };
-      reader.readAsArrayBuffer(file);
-    };
 
-    window.openTopMenu = function() {
-      const menu = document.getElementById('top_menu_modal');
-      if (menu) menu.classList.remove('hidden');
-    };
-
-    window.closeTopMenu = function() {
-      const menu = document.getElementById('top_menu_modal');
-      if (menu) menu.classList.add('hidden');
-    };
-  </script>
-
-  <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.8"></script>
-  <script src="js/auth.js?v=v0.1.8"></script>
-</head>
-<body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
-
-  <!-- Header oben (Sticky) -->
-  <header id="main_header" class="sticky top-0 bg-white/85 backdrop-blur-md border-b border-slate-200 z-30 px-3 py-2.5 shrink-0 transition-colors shadow-xs">
-    <div class="max-w-3xl mx-auto flex justify-between items-center">
-      <div class="flex items-center gap-2">
-        <h1 id="header-title" class="text-sm font-bold text-slate-800">Dateipool</h1>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="role_status_badge" class="hidden"></span>
-        <button onclick="openTopMenu()" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-600 transition-colors flex items-center justify-center text-lg shadow-xs" aria-label="Einstellungen öffnen">
-          ⚙️
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Hauptcontainer -->
-  <main class="flex-1 max-w-3xl mx-auto w-full pt-3 pb-28 px-3 flex flex-col justify-start">
-        
-    <!-- MODUL 1: ZENTRALER DATEIPOOL -->
-    <div id="view-dateipool" class="app-view space-y-4 flex-1 block">
-      <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentraler Dateipool (.xls / .xlsx)</h2>
-        <p class="text-xs text-slate-500">Wählen Sie einen Kunden aus, um die zugehörigen Excel-Dateien anzuzeigen.</p>
-        
-        <div id="dateipool_grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <!-- Dynamisch -->
-        </div>
-      </section>
-    </div>
-
-    <!-- MODUL 1.1: KUNDEN-DATEILISTE -->
-    <div id="view-customer-files" class="app-view hidden space-y-4 flex-1">
-      <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
-        <div class="flex items-center justify-between border-b pb-1.5">
-          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dateiansicht</span>
-          <button onclick="switchApp('dateipool', 'Dateipool')" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Kundenübersicht</button>
-        </div>
-        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu öffnen.</p>
-        
-        <div id="customer_files_list" class="space-y-2.5 pt-2">
-          <!-- Dynamisch -->
-        </div>
-      </section>
-    </div>
-
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus) -->
-    <div id="view-buehne" class="app-view hidden flex-1 flex flex-col -mx-3 -mt-3">
-      <!-- Toolbar für Zurück-Navigation direkt über der Tabelle -->
-      <div class="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between shrink-0">
-        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bearbeitungs-Bühne (Read-Only)</span>
-        <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
-      </div>
-      <!-- Tabellencontainer ohne Außenränder für maximale Ausnutzung -->
-      <div id="buehne_table_container" class="flex-1 bg-white">
-        <!-- Dynamisch -->
-      </div>
-    </div>
-
-    <!-- MODUL 3: STAMMDATEN -->
-    <div id="view-stammdaten" class="app-view hidden space-y-4 flex-1">
-      <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentrale Stammdaten (stammdaten.json)</h2>
-        <p class="text-xs text-slate-500">Übersicht der hinterlegten Schlauchtypen, Anschlüsse und Nennweiten.</p>
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 font-mono text-xs text-slate-600">
-          { "status": "Lade Stammdaten aus /data/stammdaten.json..." }
-        </div>
-      </section>
-    </div>
-
-  </main>
-
-  <!-- Footer Navigation mit aktiver Datei-Kachel -->
-  <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
-    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center">
-      <!-- Wird dynamisch belegt wenn eine Datei aktiv ist -->
-    </div>
-  </footer>
-
-  <!-- Einheitliches System-Modal -->
-  <div id="system_generic_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div class="border-b pb-3">
-        <h3 id="system_modal_title" class="font-bold text-base text-slate-800">Hinweis</h3>
-      </div>
-      <p id="system_modal_message" class="text-xs text-slate-600 whitespace-pre-line leading-relaxed"></p>
-      <div class="flex gap-2 pt-2">
-        <button id="system_modal_cancel_btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition-colors">
-          Abbrechen
-        </button>
-        <button id="system_modal_confirm_btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors shadow-sm">
-          Bestätigen
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Einstellungen / Zahnrad-Menü -->
-  <div id="top_menu_modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-2xl p-6 max-w-lg w-full space-y-4 text-slate-800 shadow-2xl max-h-[85vh] flex flex-col">
-      <div class="flex justify-between items-center border-b pb-3">
-        <div class="flex items-center gap-2">
-          <span class="text-xl select-none">⚙️</span>
-          <div>
-            <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.8</p>
-          </div>
-        </div>
-        <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
-      </div>
-
-      <div class="overflow-y-auto space-y-3 pr-1 text-sm text-slate-600 flex-1 divide-y divide-slate-100">
-        <div class="pt-1 pb-3">
-          <input type="file" id="hidden_file_input" accept=".xls, .xlsx" class="hidden" onchange="handleExcelImport(event)">
-          <button onclick="document.getElementById('hidden_file_input').click(); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>📁 Schlauchliste importieren</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div class="pt-3 pb-3">
-          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>📂 Dateipool</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div class="pt-3 pb-3">
-          <button onclick="switchApp('stammdaten', 'Stammdaten'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>⚙️ Stammdaten öffnen</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div id="logout_menu_item" class="pt-3 pb-3">
-          <button onclick="AuthManager.logout(); closeTopMenu();" class="w-full text-left p-3 bg-red-50 hover:bg-red-100 rounded-xl font-semibold text-red-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>🔓 Benutzer wechseln</span>
-            <span class="text-red-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div class="pt-3 pb-3">
-          <h4 class="font-bold text-xs text-slate-400 uppercase tracking-wider mb-2">Design-Theme</h4>
-          <div class="grid grid-cols-2 gap-2">
-            <button onclick="setTheme('standard')" id="theme_btn_standard" class="p-2.5 rounded-xl text-xs font-bold border-2 border-indigo-600 bg-white text-indigo-700 shadow-md transition-all text-center">Standard</button>
-            <button onclick="setTheme('gs')" id="theme_btn_gs" class="p-2.5 rounded-xl text-xs font-bold border border-slate-300 bg-slate-100 text-slate-700 transition-all text-center">GS</button>
-          </div>
-        </div>
-      </div>
-
-      <button onclick="closeTopMenu()" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-sm transition-colors">
-        Schließen
-      </button>
-    </div>
-  </div>
-
-  <!-- Auth Modal -->
-  <div id="auth_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div class="border-b pb-3">
-        <h3 class="font-bold text-base text-slate-800">Benutzer auswählen</h3>
-        <p class="text-xs text-slate-500 mt-0.5">Bitte wählen Sie Ihren Namen für den Baustelleneinsatz.</p>
-      </div>
-      <div id="user_selection_container" class="space-y-2 max-h-60 overflow-y-auto">
-        <!-- Dynamisch -->
-      </div>
-    </div>
-  </div>
-
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      AuthManager.init();
-      const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
-      setTheme(savedTheme);
-      window.renderDateipool();
-    });
-  </script>
-</body>
-</html>
+    } catch (err) {
+      console.error("Parser-Fehler:", err);
+      throw new Error("Fehler beim Einlesen der Excel-Struktur. Bitte prüfen Sie das Dateiformat.");
+    }
+  }
+};
