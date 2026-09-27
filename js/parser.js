@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.28)
  * ============================================================================
- * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
- * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
+ * Liest die komplette Excel-Datei mit allen Arbeitsblättern zur Datensicherung ein
+ * und bereitet das Arbeitsblatt "Tabelle1" für die grafische Ausgabe auf[cite: 1].
  */
 
 window.ExcelParser = {
@@ -33,22 +33,20 @@ window.ExcelParser = {
       const workbook = XLSX.read(data, { type: 'array' });
       
       let foundCustomer = null;
-      let rawRows = [];
+      let allSheetsData = {};
+      let tabelle1Rows = [];
 
+      // 1. Vollständiges Einlesen aller Arbeitsblätter zur Datensicherung[cite: 1]
       workbook.SheetNames.forEach(sheetName => {
         const sheet = workbook.Sheets[sheetName];
         const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        
-        if (jsonSheet.length > 0 && rawRows.length === 0) {
-          rawRows = jsonSheet;
-        }
+        allSheetsData[sheetName] = jsonSheet;
 
-        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben
         jsonSheet.forEach(row => {
           row.forEach((cellVal, colIdx) => {
             if (cellVal !== undefined && cellVal !== null) {
               const cellStr = String(cellVal).trim();
-              
               if (cellStr === "Kunde") {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundCustomer = String(row[colIdx + 1]).trim();
@@ -57,18 +55,28 @@ window.ExcelParser = {
             }
           });
         });
+
+        // Gezieltes Erfassen von "Tabelle1" für die grafische Ansicht[cite: 1]
+        if (sheetName.toLowerCase() === "tabelle1") {
+          tabelle1Rows = jsonSheet;
+        }
       });
 
-      // Fallback für den Kundennamen, falls kein Label "Kunde" im Dokument gefunden wurde
+      // Fallback, falls "Tabelle1" abweichend benannt ist
+      if (tabelle1Rows.length === 0 && workbook.SheetNames.length > 0) {
+        tabelle1Rows = allSheetsData[workbook.SheetNames[0]];
+      }
+
+      // Fallback für den Kundennamen
       if (!foundCustomer) {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      // Filterung & Strukturierung der Tabellenzeilen
+      // 2. Filterung und Strukturierung exklusiv für "Tabelle1" (Grafische Ausgabe)[cite: 1]
       let filteredRows = [];
       let headerFound = false;
 
-      rawRows.forEach(row => {
+      tabelle1Rows.forEach(row => {
         const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
         if (!hasContent) return;
 
@@ -78,7 +86,7 @@ window.ExcelParser = {
           return;
         }
 
-        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
+        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
           headerFound = true;
           filteredRows.push(row);
           return;
@@ -90,13 +98,14 @@ window.ExcelParser = {
       });
 
       if (filteredRows.length === 0) {
-        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
+        filteredRows = tabelle1Rows.length > 0 ? tabelle1Rows : [["Info", "Die Tabelle1 enthält keine lesbaren Daten."]];
       }
 
       return {
         client: foundCustomer,
         filename: fileName,
-        rawData: filteredRows
+        rawData: filteredRows,     // Aufbereitetes "Tabelle1" für die UI-Ansicht auf der Bühne[cite: 1]
+        allSheets: allSheetsData   // Komplette Datei mit allen Blättern zur restlosen Datensicherung[cite: 1]
       };
 
     } catch (err) {
