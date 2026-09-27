@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.41)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.42)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Greift beim Öffnen auf der Bühne kompromisslos und direkt auf "Tabelle1" zu.
+ * Greift beim Öffnen auf der Bühne direkt und exklusiv auf "Tabelle1" zu.
  */
 
 window.currentActiveCustomer = null;
@@ -201,7 +201,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // DIREKTER ZUGRIFF: Ausschließlich und kompromisslos "Tabelle1"
+  // STRIKTER ZUGRIFF: Direkt und ausnahmslos "Tabelle1" (ohne Auswahlseite, ohne Fallback)
   let targetRows = null;
   if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
     targetRows = fileObj.sheets["Tabelle1"];
