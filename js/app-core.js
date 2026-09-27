@@ -1,10 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.43)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.44)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Prüft beim Öffnen auf der Bühne exakt, ob "Tabelle1" existiert und fängt
- * fehlende Treffer ab, ohne Auswahlseiten anzuzeigen.
+ * Filtert beim Öffnen auf der Bühne automatisch Auswahlseiten aus und greift 
+ * priorisiert auf "Tabelle1" (bzw. das erste echte Datenblatt) zu.
  */
 
 window.currentActiveCustomer = null;
@@ -202,17 +202,33 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // SICHERE PRÜFUNG: Gibt es "Tabelle1" im Dokument?
+  // ROBUSTE SELEKTION: Versucht exakt "Tabelle1", ignoriert "Auswahlseite" automatisch, nimmt sonst das erste valide Datenblatt
   let targetRows = null;
   if (fileObj.sheets) {
-    if (fileObj.sheets["Tabelle1"]) {
-      targetRows = fileObj.sheets["Tabelle1"];
-    } else {
-      const availableSheets = Object.keys(fileObj.sheets).join(', ');
-      window.showSystemModal('Strukturfehler', `Das erforderliche Arbeitsblatt "Tabelle1" wurde in der Datei "${fileName}" nicht gefunden.\n\nVorhandene Blätter: [${availableSheets}]`, null, false);
-      targetRows = [["Fehler", `Tabelle1 in ${fileName} nicht gefunden. Vorhanden: ${availableSheets}`]];
+    const keys = Object.keys(fileObj.sheets);
+    
+    // 1. Suche nach exakt "Tabelle1" (oder Varianten ohne Berücksichtigung von Groß/Kleinschreibung/Leerzeichen)
+    let selectedKey = keys.find(k => k === "Tabelle1" || k.toLowerCase().replace(/\s+/g, '') === "tabelle1");
+
+    // 2. Falls kein Treffer, nimm das erste Blatt, das NICHT "auswahl" oder "choice" heißt
+    if (!selectedKey) {
+      selectedKey = keys.find(k => {
+        const lower = k.toLowerCase();
+        return !lower.includes('auswahl') && !lower.includes('choice') && !lower.includes('menu');
+      });
     }
-  } else if (fileObj.rawData) {
+
+    // 3. Fallback: Absolutes erstes Blatt
+    if (!selectedKey && keys.length > 0) {
+      selectedKey = keys[0];
+    }
+
+    if (selectedKey && fileObj.sheets[selectedKey]) {
+      targetRows = fileObj.sheets[selectedKey];
+    }
+  } 
+  
+  if (!targetRows && fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
 
@@ -243,7 +259,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       rawData = targetRows;
     }
   } else {
-    rawData = [["Info", "Keine Tabellendaten in Tabelle1 verfügbar"]];
+    rawData = [["Info", "Keine Tabellendaten im gewählten Arbeitsblatt verfügbar"]];
   }
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
