@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.61)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.63)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.61: 
- * - EXAKTES SHEET-TARGETING: Greift zwingend und exakt auf das Tabellenblatt "Tabelle1" zu (Case-Sensitive).
- * - 100% ROHFASSUNG: Keinerlei Zeilenfilter, keine automatischen Header-Ersetzungen, kein Auto-Inkrement.
- * - Volle physikalische Spaltenbreite von Spalte 0 bis zum Ende jeder Zeile.
- * - Anti-Cache Version v0.1.61 Integration.
+ * ÄNDERUNG in v0.1.63: 
+ * - EXAKTES SHEET-TARGETING auf "Tabelle1" (Case-Sensitive).
+ * - 100% ROHFASSUNG ohne jeden Zeilenfilter (die ersten 20 Zeilen und Seite 1 bleiben vollständig erhalten).
+ * - Anti-Cache Version v0.1.63 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -217,27 +216,26 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. EXAKTES SHEET-TARGETING AUF "Tabelle1" (Case-Sensitive)
+  // 1. Zwingender, exakter Zugriff auf "Tabelle1" (Case-Sensitive)
   let targetRows = null;
   if (fileObj.sheets) {
     if (fileObj.sheets["Tabelle1"] && Array.isArray(fileObj.sheets["Tabelle1"])) {
       targetRows = fileObj.sheets["Tabelle1"];
     } else {
-      // Fallback auf das erste verfügbare Blatt, falls "Tabelle1" exakt so nicht existiert
       const keys = Object.keys(fileObj.sheets);
-      if (keys.length > 0) {
+      if (keys.length > 0 && Array.isArray(fileObj.sheets[keys[0]])) {
         targetRows = fileObj.sheets[keys[0]];
       }
     }
-  } else if (fileObj.rawData) {
+  } else if (fileObj.rawData && Array.isArray(fileObj.rawData)) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. 100% ROHFASSUNG: KEINERLEI FILTER, VOLLSTÄNDIGE DATEN
+  // 2. 100% ROHFASSUNG: KEINERLEI FILTER, ALLE ZEILEN AB INDEX 0
   let rawData = [];
   let coordinateMapping = [];
   
-  if (targetRows && Array.isArray(targetRows)) {
+  if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
     let maxCols = 1;
     for (let r = 0; r < targetRows.length; r++) {
       if (Array.isArray(targetRows[r])) {
