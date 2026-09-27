@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.27)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.48)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
+ * Greift auf der Bühne direkt und exklusiv auf "rawData" zu.
  */
 
 window.currentActiveCustomer = null;
@@ -31,7 +32,11 @@ window.AppData = {
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return {
       "Beispielkunde 1": [
-        { name: "Beispielschlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
+        { 
+          name: "Beispielschlauchliste.xlsx", 
+          timestamp: nowStr, 
+          rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] 
+        }
       ]
     };
   },
@@ -43,7 +48,7 @@ window.AppData = {
     if (!clients[clientName] || !Array.isArray(clients[clientName])) return false;
     return clients[clientName].some(f => f && f.name === fileName);
   },
-  addFileToClient: function(clientName, fileName, rawData) {
+  addFileToClient: function(clientName, fileName, fileData) {
     let clients = this.getClients();
     if (!clients[clientName] || !Array.isArray(clients[clientName])) {
       clients[clientName] = [];
@@ -53,9 +58,10 @@ window.AppData = {
     const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
-      if (rawData) clients[clientName][existingIdx].rawData = rawData;
+      if (fileData.rawData) clients[clientName][existingIdx].rawData = fileData.rawData;
+      if (fileData.sheets) clients[clientName][existingIdx].sheets = fileData.sheets;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: fileData.rawData || fileData.sheets, sheets: fileData.sheets });
     }
     this.saveClients(clients);
   },
@@ -193,7 +199,47 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
+  // ============================================================================
+  // DIREKT-ZUGRIFF AUF rawData (exakt wie vom Original-Parser geliefert)
+  // ============================================================================
+  let targetRows = null;
+  if (fileObj.rawData && Array.isArray(fileObj.rawData)) {
+    targetRows = fileObj.rawData;
+  } else if (fileObj.sheets) {
+    // Fallback falls Sheets existieren
+    const firstKey = Object.keys(fileObj.sheets)[0];
+    targetRows = fileObj.sheets[firstKey];
+  }
+
+  let rawData = [];
+  let headerFound = false;
+  if (targetRows && Array.isArray(targetRows)) {
+    targetRows.forEach(row => {
+      const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+      if (!hasContent) return;
+
+      const rowString = row.join(' ').toLowerCase();
+      if (rowString.includes('kunde') || rowString.includes('anlage')) {
+        rawData.push(row);
+        return;
+      }
+
+      if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
+        headerFound = true;
+        rawData.push(row);
+        return;
+      }
+
+      if (headerFound) {
+        rawData.push(row);
+      }
+    });
+    if (rawData.length === 0) {
+      rawData = targetRows;
+    }
+  } else {
+    rawData = [["Info", "Keine Tabellendaten in rawData verfügbar"]];
+  }
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
@@ -248,7 +294,7 @@ window.closeFileOnStage = function() {
     const fileList = clients[window.currentActiveCustomer] || [];
     const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
     if (fileObj) {
-      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData);
+      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj);
     }
     window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === window.currentActiveCustomer && item.fileName === window.currentActiveFileName));
   }
@@ -360,7 +406,7 @@ window.handleExcelImport = function(event) {
           'Datei bereits vorhanden',
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
+            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData);
             if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
               window.UIPool.renderDateipool();
             }
@@ -369,7 +415,7 @@ window.handleExcelImport = function(event) {
           }
         );
       } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
+        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed);
         if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
           window.UIPool.renderDateipool();
         }
