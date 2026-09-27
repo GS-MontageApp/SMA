@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.18)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.19)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -30,8 +30,8 @@ window.AppData = {
     }
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return {
-      "Kunde 1": [
-        { name: "Kunde 1 Schlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Kunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
+      "Beispielkunde 1": [
+        { name: "Beispielschlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
       ]
     };
   },
