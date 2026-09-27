@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.53)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.54)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.53: 
- * - Toleranter Typ-Abgleich per .includes() (erkennt Typen auch bei Zusätzen/Leerzeichen).
- * - Keine starre Spaltenbegrenzung beim Extrahieren mehr: Komplette Zeilen werden geprüft
- *   und übernommen, sodass Schläuche ab Nummer 1 lückenlos geladen werden.
+ * ÄNDERUNG in v0.1.54: 
+ * - .includes() wurde komplett entfernt. Strikter, exakter Abgleich auf gültige Schlauchtypen.
+ * - Keine starre Spaltenfenster-Begrenzung mehr: Zeilen werden ab Spalte 0 über die volle 
+ *   Verfügbarkeit eingelesen, wodurch Schläuche ab Nummer 1 lückenlos erscheinen.
  */
 
 window.currentActiveCustomer = null;
@@ -279,7 +279,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER MIT TOLERANTEM .includes()-ABGLEICH UND VOLLSTÄNDIGER ZEILENEXTRAKTION AB ZEILE 0
+  // 2. PARSER MIT EXAKTEM TYP-ABGLEICH UND VOLLSTÄNDIGER ZEILENEXTRAKTION AB SPALTE 0
   let rawData = [];
   let coordinateMapping = [];
   
@@ -295,32 +295,27 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile kompromisslos
+    // Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
-      // Toleranter Typ-Abgleich per .includes() über die gesamte Zeile
+      // Exakter Typ-Abgleich (Token-Match): Muss exakt mit einem gültigen Schlauchtyp übereinstimmen
       let hasValidHoseType = false;
       for (let c = 0; c < row.length; c++) {
         const cellStr = String(row[c] || "").toUpperCase().trim();
-        if (cellStr !== "") {
-          for (let t = 0; t < normalizedValidTypes.length; t++) {
-            if (cellStr.includes(normalizedValidTypes[t])) {
-              hasValidHoseType = true;
-              break;
-            }
-          }
+        if (normalizedValidTypes.includes(cellStr)) {
+          hasValidHoseType = true;
+          break;
         }
-        if (hasValidHoseType) break;
       }
 
-      // Wenn kein gültiger Schlauchtyp in der Zeile enthalten ist, überspringen!
+      // Wenn kein exakter Schlauchtyp in der Zeile steht, überspringen!
       if (!hasValidHoseType) {
         continue;
       }
 
-      // Extrahiere bis zu 18 Spalten ab Spalte 0 der Zeile
+      // Extrahiere bis zu 18 Spalten ab Spalte 0
       let extractedSlice = [];
       let rowCoords = [];
       for (let c = 0; c < 18; c++) {
