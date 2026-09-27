@@ -1,20 +1,20 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.57)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.58)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.57: 
- * - Vollständige Entkopplung von Spaltensuche ("Kennz.") und Zeilenscan.
- * - Der Zeilenscan beginnt strikt ganz oben (Zeile 0) und prüft lückenlos bis zum Ende,
- *   sodass Schläuche ab Nummer 1 (inkl. 1 bis 20) sofort erfasst werden.
- * - Anti-Cache Version v0.1.57 Integration.
+ * ÄNDERUNG in v0.1.58: 
+ * - Komplette und restlose Deaktivierung jeglicher Spaltenbegrenzung. 
+ * - Die Zeilen werden in ihrer vollen, originalen Breite (von Spalte 0 bis zum Ende der Zeile) eingelesen.
+ * - Zeilenscan läuft strikt ab Zeile 0 durch, sodass Schläuche ab Nummer 1 lückenlos angezeigt werden.
+ * - Anti-Cache Version v0.1.58 Integration.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
 
-// Fester Master-Katalog für Spalte 1 bis 18 (Spalte A bis R)
+// Fester Master-Katalog als Standard-Header
 window.MASTER_CATALOG_HEADERS = [
   "Kennz.",
   "Schlauch",
@@ -280,15 +280,21 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER MIT ENTKOPPELTER SPALTENSUCHE & LÜCKENLOSEM ZEILENSCAN AB ZEILE 0
+  // 2. PARSER OHNE JEGLICHE SPALTENBEGRENZUNG: VOLLE ORIGINALBREITE AB ZEILE 0
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    // Spaltensuche ("Kennz.") nur zur Ausrichtung, unabhängig vom Zeilenstart
-    let headerRowIndex = 3;
-    let kennzColIndex = 0;
+    // Ermittle maximale Spaltenbreite im gesamten Sheet, um nichts abzuschneiden
+    let maxCols = window.MASTER_CATALOG_HEADERS.length;
+    for (let r = 0; r < targetRows.length; r++) {
+      if (Array.isArray(targetRows[r])) {
+        maxCols = Math.max(maxCols, targetRows[r].length);
+      }
+    }
 
+    // Finde Header-Zeile oder nutze Fallback
+    let headerRowIndex = 3;
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -296,30 +302,40 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         const val = String(row[c] || "").trim();
         if (val.includes('Kennz.') || val.includes('Kennz') || val.includes('KENNZ')) {
           headerRowIndex = r;
-          kennzColIndex = c;
           break;
         }
       }
       if (headerRowIndex !== 3) break;
     }
 
-    // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
-    rawData.push(window.MASTER_CATALOG_HEADERS);
+    // Verwende entweder die Header-Zeile der Originaldatei als Tabellenkopf oder den Master-Katalog erweitert um alle Spalten
+    let dynamicHeaders = [];
     let headerCoords = [];
-    for (let c = 0; c < 18; c++) {
-      headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
+    if (headerRowIndex >= 0 && targetRows[headerRowIndex] && Array.isArray(targetRows[headerRowIndex])) {
+      const origHeaderRow = targetRows[headerRowIndex];
+      for (let c = 0; c < maxCols; c++) {
+        dynamicHeaders.push(origHeaderRow[c] !== undefined && origHeaderRow[c] !== null && String(origHeaderRow[c]).trim() !== "" ? origHeaderRow[c] : `Spalte ${c+1}`);
+        headerCoords.push({ originalRow: headerRowIndex, originalCol: c });
+      }
+    } else {
+      for (let c = 0; c < maxCols; c++) {
+        dynamicHeaders.push(window.MASTER_CATALOG_HEADERS[c] || `Spalte ${c+1}`);
+        headerCoords.push({ originalRow: 3, originalCol: c });
+      }
     }
+
+    rawData.push(dynamicHeaders);
     coordinateMapping.push(headerCoords);
 
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // ZEILENSCAN STARTET STRIKT GANZ OBEN (ZEILE 0) BIS ZUM ENDE
+    // Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile über die volle Breite
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
-      // Exakter Token-Abgleich: Mindestens eine Zelle in dieser Zeile muss exakt einem gültigen Schlauchtyp entsprechen
+      // Exakter Token-Abgleich: Mindestens eine Zelle muss exakt einem gültigen Schlauchtyp entsprechen
       let hasValidHoseType = false;
       for (let c = 0; c < row.length; c++) {
         const cellStr = String(row[c] || "").toUpperCase().trim();
@@ -334,15 +350,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         continue;
       }
 
-      // Extrahiere bis zu 18 Spalten ab Spalte 0 der Zeile
+      // Volle Spaltenbreite ohne jegliche Begrenzung extrahieren
       let extractedSlice = [];
       let rowCoords = [];
-      for (let c = 0; c < 18; c++) {
+      for (let c = 0; c < maxCols; c++) {
         extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
+      // Kennzeichnung (erste Spalte / Index 0): Original übernehmen oder Auto-Increment
       const originalKennz = String(extractedSlice[0] || "").trim();
       if (originalKennz === "" || isNaN(parseInt(originalKennz, 10))) {
         extractedSlice[0] = String(autoIncrementId++);
@@ -362,7 +378,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe
+  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe und voller Breite
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -378,7 +394,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-140px)] bg-white shadow-none w-full relative';
 
   const table = document.createElement('table');
-  table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700';
+  table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700 min-w-max';
 
   const thead = document.createElement('thead');
   thead.className = 'sticky top-0 bg-slate-100 text-slate-800 font-bold border-b border-slate-300 shadow-xs z-10';
