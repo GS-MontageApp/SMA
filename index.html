@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.0.9 === -->
+  <!-- === SMA v0.1.0 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,9 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.0.9</title>
+  <title id="page-title">Schlauchmanagement v0.1.0</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.0.9">
+  <!-- SheetJS für Excel-Parsing im Browser -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/style.css?v=v0.1.0">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -46,6 +48,50 @@
       if (titleEl) titleEl.textContent = titleText;
     };
 
+    // Zentrale Datenverwaltung im LocalStorage (Kunden & zugeordnete Dateien)
+    window.AppData = {
+      getClients: function() {
+        const stored = localStorage.getItem('sma_clients_data');
+        if (stored) {
+          try { return JSON.parse(stored); } catch(e) { console.error(e); }
+        }
+        // Standard-Dummy-Kunden, falls noch nichts im LocalStorage ist
+        return {
+          "Kunde 1": ["Kunde 1 Datei 1.xlsx", "Kunde 1 Datei 2.xlsx"],
+          "Kunde 2": ["Kunde 2 Datei 1.xlsx"]
+        };
+      },
+      saveClients: function(data) {
+        localStorage.setItem('sma_clients_data', JSON.stringify(data));
+      },
+      addFileToClient: function(clientName, fileName) {
+        let clients = this.getClients();
+        if (!clients[clientName]) {
+          clients[clientName] = [];
+        }
+        if (!clients[clientName].includes(fileName)) {
+          clients[clientName].push(fileName);
+        }
+        this.saveClients(clients);
+      }
+    };
+
+    // UI-Aktualisierung des Dateipools
+    window.renderDateipool = function() {
+      const container = document.getElementById('dateipool_grid');
+      if (!container) return;
+      container.innerHTML = '';
+      const clients = window.AppData.getClients();
+
+      Object.keys(clients).forEach(clientName => {
+        const card = document.createElement('div');
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2';
+        card.innerHTML = `<div><h3 class="font-bold text-slate-700 text-base">${clientName}</h3></div>`;
+        card.onclick = () => window.openCustomerFiles(clientName);
+        container.appendChild(card);
+      });
+    };
+
     window.openCustomerFiles = function(customerName) {
       document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
       const target = document.getElementById('view-customer-files');
@@ -57,11 +103,12 @@
       const listContainer = document.getElementById('customer_files_list');
       if (listContainer) {
         listContainer.innerHTML = '';
-        let files = [];
-        if (customerName === 'Kunde 1') {
-          files = ['Kunde 1 Datei 1.xlsx', 'Kunde 1 Datei 2.xlsx'];
-        } else if (customerName === 'Kunde 2') {
-          files = ['Kunde 2 Datei 1.xlsx'];
+        const clients = window.AppData.getClients();
+        const files = clients[customerName] || [];
+
+        if (files.length === 0) {
+          listContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">Keine Dateien vorhanden.</p>';
+          return;
         }
 
         files.forEach(file => {
@@ -72,6 +119,56 @@
           listContainer.appendChild(card);
         });
       }
+    };
+
+    // Excel-Upload & automatisches Auslesen des Kundennamens
+    window.handleExcelImport = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          let foundCustomer = null;
+
+          // Durchsuche alle Tabellenblätter nach dem Wort "Kunde"
+          workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            jsonSheet.forEach(row => {
+              row.forEach((cellVal, colIdx) => {
+                if (cellVal && typeof cellVal === 'string' && cellVal.trim().toLowerCase() === 'kunde') {
+                  // Prüfe Zelle rechts daneben
+                  if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                    foundCustomer = String(row[colIdx + 1]).trim();
+                  }
+                }
+              });
+            });
+          });
+
+          // Fallback falls kein "Kunde" im Tabelleninhalt gefunden wurde: Nutze Dateinamen
+          if (!foundCustomer) {
+            foundCustomer = file.name.replace(/\.[^/.]+$/, "");
+          }
+
+          // Im LocalStorage abspeichern und zuordnen
+          window.AppData.addFileToClient(foundCustomer, file.name);
+          window.renderDateipool();
+
+          alert(`Erfolgreich importiert!\nKunde: ${foundCustomer}\nDatei: ${file.name}`);
+          window.switchApp('dateipool', 'Dateipool');
+        } catch (err) {
+          console.error(err);
+          alert('Fehler beim Einlesen der Excel-Datei. Bitte prüfen Sie das Dateiformat.');
+        } finally {
+          event.target.value = ''; // Reset Input
+        }
+      };
+      reader.readAsArrayBuffer(file);
     };
 
     window.openTopMenu = function() {
@@ -86,7 +183,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.0.9"></script>
+  <script src="js/auth.js?v=v0.1.0"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -114,23 +211,9 @@
         <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentraler Dateipool (.xls / .xlsx)</h2>
         <p class="text-xs text-slate-500">Wählen Sie einen Kunden aus, um die zugehörigen Excel-Dateien anzuzeigen.</p>
         
-        <!-- Kachel-Raster für Kunden ("p-5 Card-Anker") -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          
-          <!-- Kunde 1 -->
-          <div onclick="openCustomerFiles('Kunde 1')" class="p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
-            <div>
-              <h3 class="font-bold text-slate-700 text-base">Kunde 1</h3>
-            </div>
-          </div>
-
-          <!-- Kunde 2 -->
-          <div onclick="openCustomerFiles('Kunde 2')" class="p-4 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-slate-200 hover:border-slate-400 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
-            <div>
-              <h3 class="font-bold text-slate-700 text-base">Kunde 2</h3>
-            </div>
-          </div>
-
+        <!-- Dynamisches Kachel-Raster für Kunden -->
+        <div id="dateipool_grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <!-- Wird per JS gefüllt -->
         </div>
       </section>
     </div>
@@ -190,7 +273,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.9</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.0</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -201,7 +284,7 @@
         
         <!-- 1. Schlauchliste importieren -->
         <div class="pt-1 pb-3">
-          <input type="file" id="hidden_file_input" accept=".xls, .xlsx" class="hidden" onchange="alert('Datei ausgewählt: ' + (this.files[0] ? this.files[0].name : ''))">
+          <input type="file" id="hidden_file_input" accept=".xls, .xlsx" class="hidden" onchange="handleExcelImport(event)">
           <button onclick="document.getElementById('hidden_file_input').click(); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
             <span>📁 Schlauchliste importieren</span>
             <span class="text-slate-400">&rsaquo;</span>
@@ -210,7 +293,7 @@
 
         <!-- 2. Dateipool -->
         <div class="pt-3 pb-3">
-          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
+          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu(); window.renderDateipool();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
             <span>📂 Dateipool</span>
             <span class="text-slate-400">&rsaquo;</span>
           </button>
@@ -269,6 +352,9 @@
 
       const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
       setTheme(savedTheme);
+
+      // Dateipool Initialisierung
+      window.renderDateipool();
     });
   </script>
 </body>
