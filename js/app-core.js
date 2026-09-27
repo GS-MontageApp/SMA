@@ -1,21 +1,19 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.60)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.61)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.60: 
- * - ZEILENFILTER KOMPLETT DEAKTIVIERT: Jede Zeile ab Zeile 0 wird unbesehen übernommen.
- * - AUTOMATISCHE KOPFZEILEN DEAKTIVIERT: Originale Excel-Zeile 0 / Header bleiben unangetastet.
- * - AUTO-INCREMENT DEAKTIVIERT: Erste Spalte behält ihren Originalwert aus Excel.
- * - Volle physikalische Spaltenbreite ohne jegliche Begrenzung.
- * - Anti-Cache Version v0.1.60 Integration.
+ * ÄNDERUNG in v0.1.61: 
+ * - EXAKTES SHEET-TARGETING: Greift zwingend und exakt auf das Tabellenblatt "Tabelle1" zu (Case-Sensitive).
+ * - 100% ROHFASSUNG: Keinerlei Zeilenfilter, keine automatischen Header-Ersetzungen, kein Auto-Inkrement.
+ * - Volle physikalische Spaltenbreite von Spalte 0 bis zum Ende jeder Zeile.
+ * - Anti-Cache Version v0.1.61 Integration.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
 
-// Zentrale Stammdaten-Liste (wird hier nicht mehr als harten Filter verwendet)
 window.VALID_SCHLAUCH_TYPES = [
   "1SN", "2SN", "4SP", "4SH", "R13", "R15", "462", 
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
@@ -219,52 +217,27 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Blatt-Erkennung
+  // 1. EXAKTES SHEET-TARGETING AUF "Tabelle1" (Case-Sensitive)
   let targetRows = null;
   if (fileObj.sheets) {
-    const keys = Object.keys(fileObj.sheets);
-    let foundDataSheet = false;
-
-    for (let i = 0; i < keys.length; i++) {
-      const sheetName = keys[i];
-      const rows = fileObj.sheets[sheetName];
-      if (!Array.isArray(rows)) continue;
-
-      let hasKennz = false;
-      for (let r = 0; r < rows.length; r++) {
-        if (!Array.isArray(rows[r])) continue;
-        for (let c = 0; c < rows[r].length; c++) {
-          const val = String(rows[r][c] || "").trim();
-          if (val.includes('Kennz') || val.includes('KENNZ')) {
-            hasKennz = true;
-            break;
-          }
-        }
-        if (hasKennz) break;
+    if (fileObj.sheets["Tabelle1"] && Array.isArray(fileObj.sheets["Tabelle1"])) {
+      targetRows = fileObj.sheets["Tabelle1"];
+    } else {
+      // Fallback auf das erste verfügbare Blatt, falls "Tabelle1" exakt so nicht existiert
+      const keys = Object.keys(fileObj.sheets);
+      if (keys.length > 0) {
+        targetRows = fileObj.sheets[keys[0]];
       }
-
-      if (hasKennz || sheetName.toLowerCase() === 'tabelle1' || sheetName.toLowerCase() === 'tabelle 1') {
-        targetRows = rows;
-        foundDataSheet = true;
-        break;
-      }
-    }
-
-    if (!foundDataSheet) {
-      let fallbackKey = keys.find(k => !k.toLowerCase().includes('auswahl') && !k.toLowerCase().includes('menu'));
-      if (!fallbackKey && keys.length > 0) fallbackKey = keys[0];
-      if (fallbackKey) targetRows = fileObj.sheets[fallbackKey];
     }
   } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER OHNE JEGLICHE FILTER: VOLLSTÄNDIGE ROHFASSUNG (100% UNGEFILTERT)
+  // 2. 100% ROHFASSUNG: KEINERLEI FILTER, VOLLSTÄNDIGE DATEN
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    // Ermittle die absolute maximale Spaltenbreite im gesamten Sheet
     let maxCols = 1;
     for (let r = 0; r < targetRows.length; r++) {
       if (Array.isArray(targetRows[r])) {
@@ -272,7 +245,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       }
     }
 
-    // JEDE ZEILE WIRD OHNE JEDEN FILTER / VALIDIERUNG ÜBERNOMMEN
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
 
@@ -293,7 +265,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne: Absolute Rohansicht mit Sticky Header (erste Zeile der Excel) und voller Breite
+  // 3. Rendern auf die Bühne
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
