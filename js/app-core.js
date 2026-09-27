@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.36)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.37)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Die grafische Ansicht auf der Bühne filtert exklusiv auf "Tabelle1" (Auswahlseite wird ignoriert).
+ * Filtert beim Rendern auf der Bühne strikt nach "Tabelle1" und blendet 
+ * Blätter wie "Auswahlseite" konsequent aus.
  */
 
 window.currentActiveCustomer = null;
@@ -201,28 +202,37 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // EXKLUSIVE UI-FILTERUNG: Suche gezielt nach Tabelle1, ignoriere Auswahlseite komplett
+  // EXKLUSIVE UI-FILTERUNG: Zwangsfokus auf Tabelle1, Ausschluss von Auswahlseite
   let targetRows = null;
   if (fileObj.sheets) {
     const sheetKeys = Object.keys(fileObj.sheets);
-    // 1. Priorität: Exakter Treffer auf "Tabelle1" oder "Tabelle 1"
-    let tab1Key = sheetKeys.find(k => k.toLowerCase() === 'tabelle1' || k.toLowerCase() === 'tabelle 1');
     
-    if (tab1Key) {
-      targetRows = fileObj.sheets[tab1Key];
-    } else {
-      // 2. Fallback: Nimm das erste Blatt, das NICHT "auswahlseite" oder "auswahl" heißt
-      const validKeys = sheetKeys.filter(k => {
+    // 1. Suche exakt nach "Tabelle1" oder "Tabelle 1" (Case-insensitive)
+    let selectedKey = sheetKeys.find(k => {
+      const lower = k.toLowerCase().replace(/\s+/g, '');
+      return lower === 'tabelle1' || lower === 'tabelle_1';
+    });
+
+    // 2. Falls kein exakter Treffer, nimm das erste Blatt, das NICHT "auswahl" im Namen hat
+    if (!selectedKey) {
+      selectedKey = sheetKeys.find(k => {
         const lower = k.toLowerCase();
         return !lower.includes('auswahl') && !lower.includes('choice');
       });
-      if (validKeys.length > 0) {
-        targetRows = fileObj.sheets[validKeys[0]];
-      } else {
-        targetRows = fileObj.sheets[sheetKeys[0]];
-      }
     }
-  } else if (fileObj.rawData) {
+
+    // 3. Fallback, falls gar nichts passt, das erste verfügbare Blatt
+    if (!selectedKey && sheetKeys.length > 0) {
+      selectedKey = sheetKeys[0];
+    }
+
+    if (selectedKey && fileObj.sheets[selectedKey]) {
+      targetRows = fileObj.sheets[selectedKey];
+    }
+  } 
+  
+  // Abwärtskompatibilität für alte Cache-Einträge
+  if (!targetRows && fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
 
