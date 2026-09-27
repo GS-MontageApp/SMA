@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.12 === -->
+  <!-- === SMA v0.1.13 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.12</title>
+  <title id="page-title">Schlauchmanagement v0.1.13</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.12">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.13">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -121,7 +121,7 @@
     let currentActiveFileName = null;
     let openedFilesStack = []; // Enthält Objekte: { clientName, fileName }
 
-    // Multi-File Footer aktualisieren mit exakter Kunden-Zuordnung & LIFO
+    // Multi-File Footer aktualisieren: Horizontales Scrollen, voller Dateiname, aktiver Tab im Header-Grün (#10b981)
     window.updateFooterOpenFiles = function() {
       const container = document.getElementById('file_tabs_container');
       if (!container) return;
@@ -135,10 +135,11 @@
       openedFilesStack.forEach(item => {
         const isCurrent = (item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName);
         const badge = document.createElement('div');
-        badge.className = (isCurrent ? 'bg-indigo-700 ring-2 ring-indigo-300 ' : 'bg-indigo-600 hover:bg-indigo-700 ') + 
-                          'text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-[200px] truncate cursor-pointer transition-colors';
+        // Aktive Kachel erhält exakt das Header-Grün (bg-emerald-600), inaktive ein ruhiges Slate
+        badge.className = (isCurrent ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300 ' : 'bg-slate-200 hover:bg-slate-300 text-slate-700 ') + 
+                          'px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap cursor-pointer transition-colors shrink-0';
         badge.title = `${item.clientName} / ${item.fileName}`;
-        badge.innerHTML = `<span class="truncate">${item.fileName}</span>`;
+        badge.innerHTML = `<span>${item.fileName}</span>`;
         badge.onclick = () => {
           window.openFileOnStage(item.clientName, item.fileName, false);
         };
@@ -239,7 +240,7 @@
       });
     };
 
-    // Bearbeitungs-Bühne öffnen mit robustem Kundenzuordnungs-Stack
+    // Bearbeitungs-Bühne öffnen mit robustem Stack & Footer-Update
     window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const clients = window.AppData.getClients();
       const fileList = clients[clientName] || [];
@@ -318,16 +319,13 @@
         if (fileObj) {
           window.AppData.addFileToClient(currentActiveCustomer, currentActiveFileName, fileObj.rawData);
         }
-        // Aus Stack entfernen
         openedFilesStack = openedFilesStack.filter(item => !(item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName));
       }
 
       if (openedFilesStack.length > 0) {
-        // Fokus auf den linken Nachbarn (erstes Element im Stack nach dem Entfernen)
         const nextItem = openedFilesStack[0];
         window.openFileOnStage(nextItem.clientName, nextItem.fileName, false);
       } else {
-        // Keine Datei mehr offen -> zurück zur Kunden-Dateiliste
         window.updateFooterOpenFiles();
         if (currentActiveCustomer) {
           window.openCustomerFiles(currentActiveCustomer);
@@ -458,8 +456,8 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.12"></script>
-  <script src="js/auth.js?v=v0.1.12"></script>
+  <script src="js/parser.js?v=v0.1.13"></script>
+  <script src="js/auth.js?v=v0.1.13"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -534,9 +532,9 @@
 
   </main>
 
-  <!-- Footer Navigation mit Multi-File Kacheln -->
-  <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
-    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto">
+  <!-- Footer Navigation mit horizontal scrollbaren Kacheln (Vollständige Dateinamen & Header-Grün für aktiven Tab) -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
+    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
       <!-- Wird dynamisch belegt -->
     </div>
   </footer>
@@ -567,7 +565,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.12</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.13</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
