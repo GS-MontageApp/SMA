@@ -1,57 +1,107 @@
 /**
- * @file parser.js
- * @description Zentrales Parser-Modul für die Schlauchmanagement PWA.
- * Implementiert die strikten Vorgaben aus dem Master-Pflichtenheft:
- * - Strikte Tabellenblatt-Einschränkung auf "Tabelle1" (ohne Leerzeichen)[cite: 1].
+ * ============================================================================
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
+ * ============================================================================
+ * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
+ * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
  */
 
-class HoseExcelParser {
-    /**
-     * Überprüft das Workbook strikt auf das Vorhandensein von "Tabelle1".
-     * Niemals wird blind das erste Tabellenblatt eingelesen.
-     * 
-     * @param {Object} workbook - Das via SheetJS eingelesene Workbook-Objekt
-     * @returns {Object} Das validierte Worksheet von "Tabelle1"
-     * @throws {Error} Harter Abbruch bei fehlendem oder falschem Tabellenblatt
-     */
-    static validateAndGetSheet(workbook) {
-        if (!workbook || !workbook.SheetNames || !workbook.SheetNames.length) {
-            throw new Error("Kritischer Fehler: Das Excel-Workbook ist leer oder ungültig.");
-        }
-
-        const targetSheetName = "Tabelle1";
-
-        // Strenge Prüfung gemäß Pflichtenheft: Exakter Name ohne Leerzeichen
-        if (!workbook.SheetNames.includes(targetSheetName)) {
-            throw new Error(
-                `Sicherheits-Abbruch: Das obligatorische Arbeitsblatt '${targetSheetName}' ` +
-                `(exakter Name ohne Leerzeichen) wurde in der hochgeladenen Datei nicht gefunden. ` +
-                `Vorhandene Blätter in der Datei: [${workbook.SheetNames.join(", ")}].`
-            );
-        }
-
-        return workbook.Sheets[targetSheetName];
+window.ExcelParser = {
+  validateFile: function(file) {
+    if (!file) {
+      throw new Error("Keine Datei ausgewählt.");
+    }
+    const validExtensions = ['.xls', '.xlsx'];
+    const fileNameLower = file.name.toLowerCase();
+    const isValidExt = validExtensions.some(ext => fileNameLower.endsWith(ext));
+    
+    if (!isValidExt) {
+      throw new Error("Ungültiges Dateiformat. Bitte nur .xls oder .xlsx Dateien verwenden.");
     }
 
-    /**
-     * Liest die Rohdaten aus dem validierten Tabellenblatt "Tabelle1" als 2D-Array ein.
-     * 
-     * @param {Object} workbook - Das Workbook-Objekt
-     * @returns {Array<Array>} Zeilenbasiertes Array der Rohdaten
-     */
-    static parseRawData(workbook) {
-        const sheet = this.validateAndGetSheet(workbook);
+    const maxSize = 650 * 1024;
+    if (file.size > maxSize) {
+      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz mobiler Browser limitiert.");
+    }
+
+    return true;
+  },
+
+  parseFileBuffer: function(arrayBuffer, fileName) {
+    try {
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      let foundCustomer = null;
+      let rawRows = [];
+
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        // Konvertierung in ein 2D-Array (header: 1 erzeugt ein reines Array von Zeilen-Arrays)
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-        
-        if (!rows || rows.length === 0) {
-            throw new Error("Kritischer Fehler: Das Arbeitsblatt 'Tabelle1' enthält keine Daten.");
+        if (jsonSheet.length > 0 && rawRows.length === 0) {
+          rawRows = jsonSheet;
         }
 
-        return rows;
-    }
-}
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
+        jsonSheet.forEach(row => {
+          row.forEach((cellVal, colIdx) => {
+            if (cellVal !== undefined && cellVal !== null) {
+              const cellStr = String(cellVal).trim();
+              
+              if (cellStr === "Kunde") {
+                if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                  foundCustomer = String(row[colIdx + 1]).trim();
+                }
+              }
+            }
+          });
+        });
+      });
 
-// Export für die PWA-Modulstruktur
-window.HoseExcelParser = HoseExcelParser;
+      // Fallback für den Kundennamen, falls kein Label "Kunde" im Dokument gefunden wurde
+      if (!foundCustomer) {
+        foundCustomer = fileName.replace(/\.[^/.]+$/, "");
+      }
+
+      // Filterung & Strukturierung der Tabellenzeilen
+      let filteredRows = [];
+      let headerFound = false;
+
+      rawRows.forEach(row => {
+        const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+        if (!hasContent) return;
+
+        const rowString = row.join(' ').toLowerCase();
+        if (rowString.includes('kunde') || rowString.includes('anlage')) {
+          filteredRows.push(row);
+          return;
+        }
+
+        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
+          headerFound = true;
+          filteredRows.push(row);
+          return;
+        }
+
+        if (headerFound) {
+          filteredRows.push(row);
+        }
+      });
+
+      if (filteredRows.length === 0) {
+        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
+      }
+
+      return {
+        client: foundCustomer,
+        filename: fileName,
+        rawData: filteredRows
+      };
+
+    } catch (err) {
+      console.error("Parser-Fehler:", err);
+      throw new Error("Fehler beim Einlesen der Excel-Struktur. Bitte prüfen Sie das Dateiformat.");
+    }
+  }
+};
