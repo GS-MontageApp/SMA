@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.47)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.27)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Greift auf der Bühne starr, direkt und ausschließlich auf das Array "Tabelle1" zu.
  */
 
 window.currentActiveCustomer = null;
@@ -32,14 +31,7 @@ window.AppData = {
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return {
       "Beispielkunde 1": [
-        { 
-          name: "Beispielschlauchliste.xlsx", 
-          timestamp: nowStr, 
-          sheets: { 
-            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]],
-            "Auswahlseite": [["Auswahl", "Wert"], ["Option", "1"]]
-          } 
-        }
+        { name: "Beispielschlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
       ]
     };
   },
@@ -51,7 +43,7 @@ window.AppData = {
     if (!clients[clientName] || !Array.isArray(clients[clientName])) return false;
     return clients[clientName].some(f => f && f.name === fileName);
   },
-  addFileToClient: function(clientName, fileName, sheetsData) {
+  addFileToClient: function(clientName, fileName, rawData) {
     let clients = this.getClients();
     if (!clients[clientName] || !Array.isArray(clients[clientName])) {
       clients[clientName] = [];
@@ -61,9 +53,9 @@ window.AppData = {
     const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
-      if (sheetsData) clients[clientName][existingIdx].sheets = sheetsData;
+      if (rawData) clients[clientName][existingIdx].rawData = rawData;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, sheets: sheetsData });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
     }
     this.saveClients(clients);
   },
@@ -201,44 +193,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // ============================================================================
-  // EXKLUSIVER ZUGRIFF: Wir lesen starr und ausnahmslos das Array "Tabelle1" aus.
-  // Das zweite Array ("Auswahlseite") wird absolut ignoriert.
-  // ============================================================================
-  let targetRows = null;
-  if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
-    targetRows = fileObj.sheets["Tabelle1"];
-  }
-
-  let rawData = [];
-  let headerFound = false;
-  if (targetRows && Array.isArray(targetRows)) {
-    targetRows.forEach(row => {
-      const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-      if (!hasContent) return;
-
-      const rowString = row.join(' ').toLowerCase();
-      if (rowString.includes('kunde') || rowString.includes('anlage')) {
-        rawData.push(row);
-        return;
-      }
-
-      if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
-        headerFound = true;
-        rawData.push(row);
-        return;
-      }
-
-      if (headerFound) {
-        rawData.push(row);
-      }
-    });
-    if (rawData.length === 0) {
-      rawData = targetRows;
-    }
-  } else {
-    rawData = [["Info", "Keine Tabellendaten in Tabelle1 verfügbar"]];
-  }
+  const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
@@ -293,7 +248,7 @@ window.closeFileOnStage = function() {
     const fileList = clients[window.currentActiveCustomer] || [];
     const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
     if (fileObj) {
-      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.sheets);
+      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData);
     }
     window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === window.currentActiveCustomer && item.fileName === window.currentActiveFileName));
   }
@@ -405,7 +360,7 @@ window.handleExcelImport = function(event) {
           'Datei bereits vorhanden',
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.sheets);
+            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
             if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
               window.UIPool.renderDateipool();
             }
@@ -414,7 +369,7 @@ window.handleExcelImport = function(event) {
           }
         );
       } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.sheets);
+        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
         if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
           window.UIPool.renderDateipool();
         }
