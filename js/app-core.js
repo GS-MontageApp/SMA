@@ -1,8 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.27)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.31)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
+ * EXKLUSIVE ÄNDERUNG: Beim Öffnen auf der Bühne wird strikt und ausschließlich 
+ * nach dem Tabellenblatt mit dem exakten Namen "Tabelle1" gefiltert. 
+ * Jegliche Auswahlseiten oder Menüs werden komplett ignoriert.
  */
 
 window.currentActiveCustomer = null;
@@ -31,7 +34,13 @@ window.AppData = {
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return {
       "Beispielkunde 1": [
-        { name: "Beispielschlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
+        { 
+          name: "Beispielschlauchliste.xlsx", 
+          timestamp: nowStr, 
+          sheets: { 
+            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]]
+          } 
+        }
       ]
     };
   },
@@ -43,7 +52,7 @@ window.AppData = {
     if (!clients[clientName] || !Array.isArray(clients[clientName])) return false;
     return clients[clientName].some(f => f && f.name === fileName);
   },
-  addFileToClient: function(clientName, fileName, rawData) {
+  addFileToClient: function(clientName, fileName, fileObj) {
     let clients = this.getClients();
     if (!clients[clientName] || !Array.isArray(clients[clientName])) {
       clients[clientName] = [];
@@ -53,9 +62,10 @@ window.AppData = {
     const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
-      if (rawData) clients[clientName][existingIdx].rawData = rawData;
+      if (fileObj.sheets) clients[clientName][existingIdx].sheets = fileObj.sheets;
+      if (fileObj.rawData) clients[clientName][existingIdx].rawData = fileObj.rawData;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, sheets: fileObj.sheets, rawData: fileObj.rawData });
     }
     this.saveClients(clients);
   },
@@ -193,7 +203,69 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
+  // ============================================================================
+  // STRICT "TABELLE1" FILTER-GATE: 
+  // Lädt starr und ausschließlich "Tabelle1" und blendet Auswahlseiten konsequent aus.
+  // ============================================================================
+  let targetRows = null;
+  if (fileObj.sheets) {
+    const keys = Object.keys(fileObj.sheets);
+    
+    // Exakter Match auf "Tabelle1" (Groß-/Kleinschreibung tolerant, bevorzugt exakt)
+    let validKey = keys.find(k => k === 'Tabelle1');
+    if (!validKey) {
+      validKey = keys.find(k => k.toLowerCase() === 'tabelle1' || k.toLowerCase() === 'tabelle 1');
+    }
+    
+    // Falls "Tabelle1" absolut nicht existiert, nimm das erste Blatt, das KEINE Auswahl- oder Menüseite ist
+    if (!validKey) {
+      validKey = keys.find(k => {
+        const lower = k.toLowerCase();
+        return !lower.includes('auswahl') && !lower.includes('choice') && !lower.includes('menu');
+      });
+    }
+
+    // Letzter Fallback
+    if (!validKey && keys.length > 0) {
+      validKey = keys[0];
+    }
+
+    if (validKey) {
+      targetRows = fileObj.sheets[validKey];
+    }
+  } else if (fileObj.rawData) {
+    targetRows = fileObj.rawData;
+  }
+
+  let rawData = [];
+  let headerFound = false;
+  if (targetRows && Array.isArray(targetRows)) {
+    targetRows.forEach(row => {
+      const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+      if (!hasContent) return;
+
+      const rowString = row.join(' ').toLowerCase();
+      if (rowString.includes('kunde') || rowString.includes('anlage')) {
+        rawData.push(row);
+        return;
+      }
+
+      if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
+        headerFound = true;
+        rawData.push(row);
+        return;
+      }
+
+      if (headerFound) {
+        rawData.push(row);
+      }
+    });
+    if (rawData.length === 0) {
+      rawData = targetRows;
+    }
+  } else {
+    rawData = [["Info", "Keine Tabellendaten verfügbar"]];
+  }
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
@@ -248,7 +320,7 @@ window.closeFileOnStage = function() {
     const fileList = clients[window.currentActiveCustomer] || [];
     const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
     if (fileObj) {
-      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData);
+      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj);
     }
     window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === window.currentActiveCustomer && item.fileName === window.currentActiveFileName));
   }
@@ -360,7 +432,7 @@ window.handleExcelImport = function(event) {
           'Datei bereits vorhanden',
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
+            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData);
             if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
               window.UIPool.renderDateipool();
             }
@@ -369,7 +441,7 @@ window.handleExcelImport = function(event) {
           }
         );
       } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
+        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed);
         if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
           window.UIPool.renderDateipool();
         }
