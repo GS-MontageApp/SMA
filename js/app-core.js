@@ -1,42 +1,21 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.59)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.60)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.59: 
- * - SPALTENBEGRENZUNG VOLLSTÄNDIG DEAKTIVIERT (Schritt 2).
- * - Jede Zeile wird in ihrer absoluten, originalen physikalischen Breite (von Spalte 0 bis row.length) eingelesen.
- * - Zeilenscan läuft strikt ab Zeile 0 durch, sodass alle Daten und Schläuche lückenlos angezeigt werden.
- * - Anti-Cache Version v0.1.59 Integration.
+ * ÄNDERUNG in v0.1.60: 
+ * - ZEILENFILTER KOMPLETT DEAKTIVIERT: Jede Zeile ab Zeile 0 wird unbesehen übernommen.
+ * - AUTOMATISCHE KOPFZEILEN DEAKTIVIERT: Originale Excel-Zeile 0 / Header bleiben unangetastet.
+ * - AUTO-INCREMENT DEAKTIVIERT: Erste Spalte behält ihren Originalwert aus Excel.
+ * - Volle physikalische Spaltenbreite ohne jegliche Begrenzung.
+ * - Anti-Cache Version v0.1.60 Integration.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
 
-// Fester Master-Katalog als Fallback-Header
-window.MASTER_CATALOG_HEADERS = [
-  "Kennz.",
-  "Schlauch",
-  "NW",
-  "Anschluß A",
-  "Anschluß B",
-  "Länge",
-  "Lage A",
-  "Lage B",
-  "max. Druck (Bar)",
-  "Herstell-datum",
-  "Sicherheits-technische Bewertung",
-  "Theor. Lebens-dauer",
-  "Prüfung am",
-  "Prüfung*",
-  "Nächste Prüfung",
-  "Prüfer",
-  "Einbauort",
-  "Bemerkung"
-];
-
-// Zentrale Stammdaten-Liste gültiger Schlauchtypen
+// Zentrale Stammdaten-Liste (wird hier nicht mehr als harten Filter verwendet)
 window.VALID_SCHLAUCH_TYPES = [
   "1SN", "2SN", "4SP", "4SH", "R13", "R15", "462", 
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
@@ -72,9 +51,9 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1
-              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], 
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], 
+              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  
             ]
           } 
         }
@@ -280,105 +259,41 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER OHNE SPALTENBEGRENZUNG (SCHRITT 2 DEAKTIVIERT): VOLLE PHYSIKALISCHE BREITE AB ZEILE 0
+  // 2. PARSER OHNE JEGLICHE FILTER: VOLLSTÄNDIGE ROHFASSUNG (100% UNGEFILTERT)
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    // Ermittle die absolute maximale Spaltenbreite im gesamten Sheet, um absolut nichts abzuschneiden
-    let maxCols = window.MASTER_CATALOG_HEADERS.length;
+    // Ermittle die absolute maximale Spaltenbreite im gesamten Sheet
+    let maxCols = 1;
     for (let r = 0; r < targetRows.length; r++) {
       if (Array.isArray(targetRows[r])) {
         maxCols = Math.max(maxCols, targetRows[r].length);
       }
     }
 
-    // Finde Header-Zeile für die Spaltenbeschriftung
-    let headerRowIndex = 3;
-    for (let r = 0; r < targetRows.length; r++) {
-      const row = targetRows[r];
-      if (!Array.isArray(row)) continue;
-      for (let c = 0; c < row.length; c++) {
-        const val = String(row[c] || "").trim();
-        if (val.includes('Kennz.') || val.includes('Kennz') || val.includes('KENNZ')) {
-          headerRowIndex = r;
-          break;
-        }
-      }
-      if (headerRowIndex !== 3) break;
-    }
+    // JEDE ZEILE WIRD OHNE JEDEN FILTER / VALIDIERUNG ÜBERNOMMEN
+    targetRows.forEach((row, rIndex) => {
+      if (!Array.isArray(row)) return;
 
-    // Baue die Spaltenüberschriften in voller physikalischer Breite auf
-    let dynamicHeaders = [];
-    let headerCoords = [];
-    if (headerRowIndex >= 0 && targetRows[headerRowIndex] && Array.isArray(targetRows[headerRowIndex])) {
-      const origHeaderRow = targetRows[headerRowIndex];
-      for (let c = 0; c < maxCols; c++) {
-        dynamicHeaders.push(origHeaderRow[c] !== undefined && origHeaderRow[c] !== null && String(origHeaderRow[c]).trim() !== "" ? origHeaderRow[c] : `Spalte ${c+1}`);
-        headerCoords.push({ originalRow: headerRowIndex, originalCol: c });
-      }
-    } else {
-      for (let c = 0; c < maxCols; c++) {
-        dynamicHeaders.push(window.MASTER_CATALOG_HEADERS[c] || `Spalte ${c+1}`);
-        headerCoords.push({ originalRow: 3, originalCol: c });
-      }
-    }
-
-    rawData.push(dynamicHeaders);
-    coordinateMapping.push(headerCoords);
-
-    let autoIncrementId = 1;
-    const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
-
-    // Zeilenscan läuft strikt ganz oben (Zeile 0) bis zum Ende durch
-    for (let r = 0; r < targetRows.length; r++) {
-      const row = targetRows[r];
-      if (!Array.isArray(row)) continue;
-
-      // Exakter Token-Abgleich: Mindestens eine Zelle muss exakt einem gültigen Schlauchtyp entsprechen
-      let hasValidHoseType = false;
-      for (let c = 0; c < row.length; c++) {
-        const cellStr = String(row[c] || "").toUpperCase().trim();
-        if (normalizedValidTypes.includes(cellStr)) {
-          hasValidHoseType = true;
-          break;
-        }
-      }
-
-      // Wenn kein gültiger Schlauchtyp in der Zeile gefunden wurde, überspringen!
-      if (!hasValidHoseType) {
-        continue;
-      }
-
-      // SPALTENBEGRENZUNG DEAKTIVIERT: Extrahiere JEDE Spalte von 0 bis zur vollen Zeilenbreite (maxCols)
       let extractedSlice = [];
       let rowCoords = [];
       for (let c = 0; c < maxCols; c++) {
         extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
-        rowCoords.push({ originalRow: r, originalCol: c });
-      }
-
-      // Kennzeichnung (erste Spalte / Index 0): Original übernehmen oder Auto-Increment
-      const originalKennz = String(extractedSlice[0] || "").trim();
-      if (originalKennz === "" || isNaN(parseInt(originalKennz, 10))) {
-        extractedSlice[0] = String(autoIncrementId++);
-      } else {
-        const numVal = parseInt(originalKennz, 10);
-        if (!isNaN(numVal)) {
-          autoIncrementId = Math.max(autoIncrementId, numVal + 1);
-        }
+        rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
 
       rawData.push(extractedSlice);
       coordinateMapping.push(rowCoords);
-    }
+    });
+
   } else {
-    rawData = [window.MASTER_CATALOG_HEADERS, ["Info", "Keine Tabellendaten verfügbar"]];
+    rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe und voller unbegrenzter Breite
+  // 3. Rendern auf die Bühne: Absolute Rohansicht mit Sticky Header (erste Zeile der Excel) und voller Breite
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
