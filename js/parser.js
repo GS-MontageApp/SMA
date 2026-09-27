@@ -1,6 +1,12 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.8)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.9)
+ * ============================================================================
+ * Verantwortlich für:
+ * - Einlesen und Verarbeiten von .xls / .xlsx-Dateien via SheetJS
+ * - Strenge Vorab-Validierung (Crash-Schutz & Dateigrößen-Check)
+ * - Automatisches Extrahieren des Kundennamens (Schlüsselwort "Kunde")
+ * - Bereitstellung der echten Tabellendaten für die Aktive Bearbeitungs-Bühne
  * ============================================================================
  */
 
