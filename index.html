@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.0.6 === -->
+  <!-- === SMA v0.0.7 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,9 +10,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.0.6</title>
+  <title id="page-title">Schlauchmanagement v0.0.7</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.0.6">
+  <link rel="stylesheet" href="css/style.css?v=v0.0.7">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -58,7 +58,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.0.6"></script>
+  <script src="js/auth.js?v=v0.0.7"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -66,7 +66,7 @@
   <header id="main_header" class="sticky top-0 bg-white/85 backdrop-blur-md border-b border-slate-200 z-30 px-3 py-2.5 shrink-0 transition-colors shadow-xs">
     <div class="max-w-3xl mx-auto flex justify-between items-center">
       <div class="flex items-center gap-2">
-        <h1 id="header-title" class="text-sm font-bold text-slate-800">Import (v0.0.6)</h1>
+        <h1 id="header-title" class="text-sm font-bold text-slate-800">Dateipool (v0.0.7)</h1>
       </div>
       <div class="flex items-center gap-3">
         <span id="role_status_badge" class="hidden"></span>
@@ -80,45 +80,39 @@
   <!-- Hauptcontainer -->
   <main class="flex-1 max-w-3xl mx-auto w-full pt-3 pb-28 px-3 flex flex-col justify-start">
         
-    <!-- MODUL 1: DATEIPOOL / IMPORT -->
+    <!-- MODUL 1: ZENTRALER DATEIPOOL (Kunden-Ebene) -->
     <div id="view-dateipool" class="app-view space-y-4 flex-1 block">
       <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
         <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentraler Dateipool (.xls / .xlsx)</h2>
-        <p class="text-xs text-slate-500">Wählen Sie eine eingelesene Datei aus oder importieren Sie neue Baudaten für den Baustelleneinsatz.</p>
+        <p class="text-xs text-slate-500">Wählen Sie einen Kunden aus, um die zugehörigen Excel-Dateien anzuzeigen.</p>
         
-        <!-- Kachel-Raster für eingelesene Excel-Dateien ("p-5 Card-Anker") -->
+        <!-- Kachel-Raster für Kunden ("p-5 Card-Anker") -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           
-          <!-- Beispiel-Kachel 1 -->
-          <div onclick="alert('Datei wird auf die Bühne geholt...')" class="p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
+          <!-- Kunde 1 -->
+          <div onclick="alert('Kunde 1 ausgewählt: Lade zugeordnete Excel-Dateien...')" class="p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
             <div class="flex justify-between items-start">
               <span class="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Aktiv</span>
-              <span class="text-xs text-slate-400">Stand: Heute</span>
+              <span class="text-xs text-slate-400">2 Dateien</span>
             </div>
             <div>
-              <h3 class="font-bold text-slate-700 text-base">Baustelle_Nord_Sektion_1.xlsx</h3>
-              <p class="text-xs text-slate-500 mt-0.5">24 Datensätze • Letzter Bearbeiter: MK</p>
+              <h3 class="font-bold text-slate-700 text-base">Kunde 1</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Letzter Zugriff: Heute</p>
             </div>
           </div>
 
-          <!-- Beispiel-Kachel 2 -->
-          <div onclick="alert('Datei wird auf die Bühne geholt...')" class="p-4 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-slate-200 hover:border-slate-400 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
+          <!-- Kunde 2 -->
+          <div onclick="alert('Kunde 2 ausgewählt: Lade zugeordnete Excel-Dateien...')" class="p-4 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-slate-200 hover:border-slate-400 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
             <div class="flex justify-between items-start">
               <span class="text-xs font-mono font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded">Bereit</span>
-              <span class="text-xs text-slate-400">Stand: Gestern</span>
+              <span class="text-xs text-slate-400">1 Datei</span>
             </div>
             <div>
-              <h3 class="font-bold text-slate-700 text-base">Hallen_B_Hydraulik.xlsx</h3>
-              <p class="text-xs text-slate-500 mt-0.5">18 Datensätze • Letzter Bearbeiter: TS</p>
+              <h3 class="font-bold text-slate-700 text-base">Kunde 2</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Letzter Zugriff: Gestern</p>
             </div>
           </div>
 
-        </div>
-
-        <div class="pt-3">
-          <button onclick="alert('Import-Dialog öffnen')" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
-            <span>📁 Schlauchliste importieren (.xls / .xlsx)</span>
-          </button>
         </div>
       </section>
     </div>
@@ -129,7 +123,7 @@
         <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Aktive Bearbeitungs-Bühne</h2>
         <div class="p-6 text-center text-slate-400 space-y-2">
           <div class="text-3xl">📋</div>
-          <p class="text-sm">Keine Datei aktiv. Wählen Sie im Dateipool eine Datei aus, um sie hier zu bearbeiten.</p>
+          <p class="text-sm">Keine Datei aktiv. Wählen Sie eine Datei aus, um sie hier zu bearbeiten.</p>
         </div>
       </section>
     </div>
@@ -151,7 +145,6 @@
   <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-2 py-1.5 shrink-0 transition-colors">
     <div id="file_tabs_container" class="max-w-3xl mx-auto flex gap-2 overflow-x-auto items-center">
       <span class="text-[11px] font-semibold text-slate-400 px-2 uppercase tracking-wider">Aktive Tabs:</span>
-      <!-- Dynamische Tabs für bearbeitete Dateien entstehen hier -->
       <button onclick="switchApp('buehne', 'Bearbeitungs-Bühne')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 border border-slate-200 shrink-0 flex items-center gap-1.5">
         <span>📄 Baustelle_Nord_Sektion_1.xlsx</span>
       </button>
@@ -166,7 +159,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.6</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.7</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -175,7 +168,7 @@
       <!-- Einstellungsmenü (Exakte Reihenfolge von oben nach unten) -->
       <div class="overflow-y-auto space-y-3 pr-1 text-sm text-slate-600 flex-1 divide-y divide-slate-100">
         
-        <!-- 1. Schlauchliste importieren (öffnet direkt Dateidialog) -->
+        <!-- 1. Schlauchliste importieren -->
         <div class="pt-1 pb-3">
           <input type="file" id="hidden_file_input" accept=".xls, .xlsx" class="hidden" onchange="alert('Datei ausgewählt: ' + (this.files[0] ? this.files[0].name : ''))">
           <button onclick="document.getElementById('hidden_file_input').click(); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
@@ -184,9 +177,9 @@
           </button>
         </div>
 
-        <!-- 2. Dateipool (führt zur zentralen Dateipool-Seite) -->
+        <!-- 2. Dateipool -->
         <div class="pt-3 pb-3">
-          <button onclick="switchApp('dateipool', 'Import'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
+          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
             <span>📂 Dateipool</span>
             <span class="text-slate-400">&rsaquo;</span>
           </button>
