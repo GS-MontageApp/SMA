@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.0.7 === -->
+  <!-- === SMA v0.0.8 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,9 +10,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.0.7</title>
+  <title id="page-title">Schlauchmanagement v0.0.8</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.0.7">
+  <link rel="stylesheet" href="css/style.css?v=v0.0.8">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -46,6 +46,34 @@
       if (titleEl) titleEl.textContent = titleText;
     };
 
+    window.openCustomerFiles = function(customerName) {
+      document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
+      const target = document.getElementById('view-customer-files');
+      if (target) target.classList.remove('hidden');
+
+      const titleEl = document.getElementById('header-title');
+      if (titleEl) titleEl.textContent = customerName;
+
+      const listContainer = document.getElementById('customer_files_list');
+      if (listContainer) {
+        listContainer.innerHTML = '';
+        let files = [];
+        if (customerName === 'Kunde 1') {
+          files = ['Kunde 1 Datei 1.xlsx', 'Kunde 1 Datei 2.xlsx'];
+        } else if (customerName === 'Kunde 2') {
+          files = ['Kunde 2 Datei 1.xlsx'];
+        }
+
+        files.forEach(file => {
+          const card = document.createElement('div');
+          card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex justify-between items-center';
+          card.innerHTML = `<div><h3 class="font-bold text-slate-700 text-base">${file}</h3><p class="text-xs text-slate-500 mt-0.5">Lokal gespeichert (LocalStorage)</p></div><span class="text-xs font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-bold">Öffnen &rsaquo;</span>`;
+          card.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
+          listContainer.appendChild(card);
+        });
+      }
+    };
+
     window.openTopMenu = function() {
       const menu = document.getElementById('top_menu_modal');
       if (menu) menu.classList.remove('hidden');
@@ -58,7 +86,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.0.7"></script>
+  <script src="js/auth.js?v=v0.0.8"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -66,7 +94,7 @@
   <header id="main_header" class="sticky top-0 bg-white/85 backdrop-blur-md border-b border-slate-200 z-30 px-3 py-2.5 shrink-0 transition-colors shadow-xs">
     <div class="max-w-3xl mx-auto flex justify-between items-center">
       <div class="flex items-center gap-2">
-        <h1 id="header-title" class="text-sm font-bold text-slate-800">Dateipool (v0.0.7)</h1>
+        <h1 id="header-title" class="text-sm font-bold text-slate-800">Dateipool</h1>
       </div>
       <div class="flex items-center gap-3">
         <span id="role_status_badge" class="hidden"></span>
@@ -90,29 +118,35 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           
           <!-- Kunde 1 -->
-          <div onclick="alert('Kunde 1 ausgewählt: Lade zugeordnete Excel-Dateien...')" class="p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex justify-between items-start">
-              <span class="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Aktiv</span>
-              <span class="text-xs text-slate-400">2 Dateien</span>
-            </div>
+          <div onclick="openCustomerFiles('Kunde 1')" class="p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
             <div>
               <h3 class="font-bold text-slate-700 text-base">Kunde 1</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Letzter Zugriff: Heute</p>
             </div>
           </div>
 
           <!-- Kunde 2 -->
-          <div onclick="alert('Kunde 2 ausgewählt: Lade zugeordnete Excel-Dateien...')" class="p-4 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-slate-200 hover:border-slate-400 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex justify-between items-start">
-              <span class="text-xs font-mono font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded">Bereit</span>
-              <span class="text-xs text-slate-400">1 Datei</span>
-            </div>
+          <div onclick="openCustomerFiles('Kunde 2')" class="p-4 bg-slate-50 hover:bg-slate-100 rounded-xl border-2 border-slate-200 hover:border-slate-400 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2">
             <div>
               <h3 class="font-bold text-slate-700 text-base">Kunde 2</h3>
-              <p class="text-xs text-slate-500 mt-0.5">Letzter Zugriff: Gestern</p>
             </div>
           </div>
 
+        </div>
+      </section>
+    </div>
+
+    <!-- MODUL 1.1: KUNDEN-DATEILISTE (Unteransicht) -->
+    <div id="view-customer-files" class="app-view hidden space-y-4 flex-1">
+      <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
+        <div class="flex items-center justify-between border-b pb-1.5">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Zuordnete Excel-Dateien</h2>
+          <button onclick="switchApp('dateipool', 'Dateipool')" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Kundenübersicht</button>
+        </div>
+        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie auf der Bühne zu bearbeiten.</p>
+        
+        <!-- Dynamischer Container für die Dateiliste -->
+        <div id="customer_files_list" class="space-y-2 pt-2">
+          <!-- Wird per JS gefüllt -->
         </div>
       </section>
     </div>
@@ -159,7 +193,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.7</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.8</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
