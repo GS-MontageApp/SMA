@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.2 === -->
+  <!-- === SMA v0.1.3 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.2</title>
+  <title id="page-title">Schlauchmanagement v0.1.3</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.2">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.3">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -46,19 +46,30 @@
 
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = titleText;
+
+      // Wenn wir zum Dateipool zurückkehren, Kacheln sofort aktualisieren
+      if (viewId === 'dateipool') {
+        window.renderDateipool();
+      }
     };
 
-    // Zentrale Datenverwaltung im LocalStorage (Kunden & zugeordnete Dateien)
+    // Zentrale Datenverwaltung im LocalStorage (Kunden & zugeordnete Dateien mit Timestamps)
     window.AppData = {
       getClients: function() {
         const stored = localStorage.getItem('sma_clients_data');
         if (stored) {
           try { return JSON.parse(stored); } catch(e) { console.error(e); }
         }
-        // Standard-Dummy-Kunden, falls noch nichts im LocalStorage ist
+        // Standard-Dummy-Kunden mit initialen Objekten (Name + Zeitstempel)
+        const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         return {
-          "Kunde 1": ["Kunde 1 Datei 1.xlsx", "Kunde 1 Datei 2.xlsx"],
-          "Kunde 2": ["Kunde 2 Datei 1.xlsx"]
+          "Kunde 1": [
+            { name: "Kunde 1 Datei 1.xlsx", timestamp: nowStr },
+            { name: "Kunde 1 Datei 2.xlsx", timestamp: nowStr }
+          ],
+          "Kunde 2": [
+            { name: "Kunde 2 Datei 1.xlsx", timestamp: nowStr }
+          ]
         };
       },
       saveClients: function(data) {
@@ -67,23 +78,28 @@
       hasFile: function(clientName, fileName) {
         let clients = this.getClients();
         if (!clients[clientName]) return false;
-        return clients[clientName].includes(fileName);
+        return clients[clientName].some(f => f.name === fileName);
       },
       addFileToClient: function(clientName, fileName) {
         let clients = this.getClients();
         if (!clients[clientName]) {
           clients[clientName] = [];
         }
-        if (!clients[clientName].includes(fileName)) {
-          clients[clientName].push(fileName);
+        const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        // Prüfen ob Datei schon existiert, ansonsten hinzufügen oder aktualisieren
+        const existingIdx = clients[clientName].findIndex(f => f.name === fileName);
+        if (existingIdx >= 0) {
+          clients[clientName][existingIdx].timestamp = nowStr;
+        } else {
+          clients[clientName].push({ name: fileName, timestamp: nowStr });
         }
         this.saveClients(clients);
       },
       removeFileFromClient: function(clientName, fileName) {
         let clients = this.getClients();
         if (clients[clientName]) {
-          clients[clientName] = clients[clientName].filter(f => f !== fileName);
-          // Wenn keine Dateien mehr übrig sind, Kunde optional behalten oder bereinigen (hier behalten wir den Kunden-Eintrag)
+          clients[clientName] = clients[clientName].filter(f => f.name !== fileName);
           this.saveClients(clients);
         }
       },
@@ -97,7 +113,7 @@
     // Aktuell ausgewählter Kunde für die Dateilistenansicht
     let currentActiveCustomer = null;
 
-    // UI-Aktualisierung des Dateipools (mit direktem Kunden-Löschbutton)
+    // UI-Aktualisierung des Dateipools (Kunden-Kacheln)
     window.renderDateipool = function() {
       const container = document.getElementById('dateipool_grid');
       if (!container) return;
@@ -111,7 +127,8 @@
       }
 
       customerKeys.forEach(clientName => {
-        const fileCount = (clients[clientName] || []).length;
+        const fileList = clients[clientName] || [];
+        const fileCount = fileList.length;
         const card = document.createElement('div');
         card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between group';
         
@@ -162,36 +179,32 @@
         return;
       }
 
-      files.forEach(file => {
-        const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex justify-between items-center';
-        
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1 cursor-pointer';
-        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${file}</h3><p class="text-xs text-slate-500 mt-0.5">Lokal gespeichert (LocalStorage)</p>`;
-        infoDiv.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
-        card.appendChild(infoDiv);
+      files.forEach(fileObj => {
+        const fileName = typeof fileObj === 'string' ? fileObj : fileObj.name;
+        const timestamp = typeof fileObj === 'string' ? 'Unbekannt' : fileObj.timestamp;
 
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'flex items-center gap-2';
+        const card = document.createElement('div');
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex justify-between items-center cursor-pointer';
         
-        const openSpan = document.createElement('span');
-        openSpan.className = 'text-xs font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-bold cursor-pointer';
-        openSpan.innerHTML = 'Öffnen &rsaquo;';
-        openSpan.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
-        actionsDiv.appendChild(openSpan);
+        // Gesamte Kachel antippen öffnet die Datei auf der Bühne
+        card.onclick = () => alert(`Öffne ${fileName} auf der Bearbeitungs-Bühne...`);
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'flex-1';
+        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${fileName}</h3><p class="text-xs text-slate-500 mt-0.5">Zuletzt lokal gespeichert am: ${timestamp}</p>`;
+        card.appendChild(infoDiv);
 
         // Einzelner Datei-Löschen-Button
         const delFileBtn = document.createElement('button');
         delFileBtn.className = 'p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
         delFileBtn.title = 'Datei löschen';
         delFileBtn.innerHTML = '🗑️';
-        delFileBtn.onclick = () => {
-          window.confirmDeleteFile(currentActiveCustomer, file);
+        delFileBtn.onclick = (e) => {
+          e.stopPropagation(); // Verhindert das Auslösen des Kachel-Klicks
+          window.confirmDeleteFile(currentActiveCustomer, fileName);
         };
-        actionsDiv.appendChild(delFileBtn);
+        card.appendChild(delFileBtn);
 
-        card.appendChild(actionsDiv);
         listContainer.appendChild(card);
       });
     };
@@ -330,7 +343,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.1.2"></script>
+  <script src="js/auth.js?v=v0.1.3"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -438,7 +451,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.2</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.3</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -458,7 +471,7 @@
 
         <!-- 2. Dateipool -->
         <div class="pt-3 pb-3">
-          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu(); window.renderDateipool();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
+          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
             <span>📂 Dateipool</span>
             <span class="text-slate-400">&rsaquo;</span>
           </button>
