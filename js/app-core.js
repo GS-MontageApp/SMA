@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.48)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.49)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: 
- * 1. Exakte Suche nach dem Tabellenanker "Kennz." (mit Punkt wie in der Vorlage).
- * 2. Multi-Indizien-Detektor: Scannt strikt unterhalb des Headers ab Zeile 5.
- *    Prüft verlässlich auf Kennzeichnung, Nennweite (NW) und Länge > 0.
- *    Stoppt zuverlässig am Unterschriften-Footer.
+ * ÄNDERUNG in v0.1.49: 
+ * - Der textbasierte Stopp-Anker ("Ersteller") wurde ersatzlos entfernt. 
+ * - Der Parser läuft nun unaufhaltsam bis zum Ende des Excel-Blatts durch,
+ *   sodass auch 500+ Schläuche fehlerfrei und lückenlos eingelesen werden.
  */
 
 window.currentActiveCustomer = null;
@@ -280,7 +279,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Präzise Suche nach exakt "Kennz." / "KENNZ." und Multi-Indizien-Detektor
+  // 2. Präzise Suche nach exakt "Kennz." und Durchlauf bis zum Dateiende ohne Stopp-Anker
   let rawData = [];
   let coordinateMapping = [];
   
@@ -288,7 +287,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
-    // Suche exakt nach der Zelle mit "Kennz." (oder Kennzeichen)
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -303,8 +301,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== -1) break;
     }
 
-    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback auf Zeile 4
-    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback auf Spalte A
+    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback Zeile 4
+    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback Spalte A
 
     // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
@@ -316,7 +314,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
     let autoIncrementId = 1;
 
-    // Scan beginnt strikt ab Zeile unterhalb von "Kennz." (headerRowIndex + 1)
+    // Scan beginnt strikt ab Zeile unterhalb von "Kennz." (headerRowIndex + 1) bis zum absoluten Ende
     const dataStartIndex = headerRowIndex + 1;
 
     for (let r = dataStartIndex; r < targetRows.length; r++) {
@@ -330,13 +328,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // Prüfe auf Footer-Ende (Unterschriften / Ersteller / Klassifizierung)
-      const firstColText = String(extractedSlice[0] || "").toUpperCase().trim();
-      if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG") || firstColText.includes("DOKUMENTATION")) {
-        break; // Footer erreicht
-      }
-
-      // MULTI-INDIZIEN-SCHLAUCHDETEKTOR:
+      // MULTI-INDIZIEN-SCHLAUCHDETEKTOR (ohne Text-Stopp, läuft bis zum Ende):
       const originalKennz = String(extractedSlice[0] || "").trim();
       
       // Nennweite (Spalte 3 / Index 2)
@@ -347,9 +339,9 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const laengeVal = String(extractedSlice[5] || "").trim();
       const hasValidLength = laengeVal !== "" && !isNaN(Number(laengeVal)) && Number(laengeVal) > 0;
 
-      // Validiere, ob es ein echter Schlauch ist
-      if (!hasValidLength && !(originalKennz !== "" && hasValidNW)) {
-        continue; // Leerzeile oder ungültig -> überspringen
+      // Überspringe reine Leerzeilen (wenn keine Kennz., keine NW und keine Länge existiert)
+      if (originalKennz === "" && !hasValidNW && !hasValidLength) {
+        continue; 
       }
 
       // Kennzeichnung übernehmen oder Auto-Increment
