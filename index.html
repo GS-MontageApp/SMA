@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.0.8 === -->
+  <!-- === SMA v0.0.9 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,9 +10,9 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.0.8</title>
+  <title id="page-title">Schlauchmanagement v0.0.9</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.0.8">
+  <link rel="stylesheet" href="css/style.css?v=v0.0.9">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -86,7 +86,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.0.8"></script>
+  <script src="js/auth.js?v=v0.0.9"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -139,10 +139,10 @@
     <div id="view-customer-files" class="app-view hidden space-y-4 flex-1">
       <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
         <div class="flex items-center justify-between border-b pb-1.5">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Zuordnete Excel-Dateien</h2>
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dateiansicht</span>
           <button onclick="switchApp('dateipool', 'Dateipool')" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Kundenübersicht</button>
         </div>
-        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie auf der Bühne zu bearbeiten.</p>
+        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu bearbeiten.</p>
         
         <!-- Dynamischer Container für die Dateiliste -->
         <div id="customer_files_list" class="space-y-2 pt-2">
@@ -175,13 +175,10 @@
 
   </main>
 
-  <!-- Footer Navigation (Dedizierter Bereich für Datei-Tabs) -->
+  <!-- Footer Navigation (Komplett bereinigt / leer) -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-2 py-1.5 shrink-0 transition-colors">
     <div id="file_tabs_container" class="max-w-3xl mx-auto flex gap-2 overflow-x-auto items-center">
-      <span class="text-[11px] font-semibold text-slate-400 px-2 uppercase tracking-wider">Aktive Tabs:</span>
-      <button onclick="switchApp('buehne', 'Bearbeitungs-Bühne')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-700 border border-slate-200 shrink-0 flex items-center gap-1.5">
-        <span>📄 Baustelle_Nord_Sektion_1.xlsx</span>
-      </button>
+      <!-- Footer-Inhalte entfernt -->
     </div>
   </footer>
 
@@ -193,7 +190,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.8</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.0.9</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
