@@ -1,13 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.52)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.53)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.52: 
- * - Trennung von Spaltensuche ("Kennz.") und Zeilenscan.
- * - Die Spaltenbestimmung erfolgt flexibel über "Kennz." (egal auf welcher Seite).
- * - Der Zeilenscan startet strikt ganz oben bei Zeile 0 und prüft jede Zeile
- *   kompromisslos auf einen gültigen Schlauchtyp aus VALID_SCHLAUCH_TYPES.
+ * ÄNDERUNG in v0.1.53: 
+ * - Toleranter Typ-Abgleich per .includes() (erkennt Typen auch bei Zusätzen/Leerzeichen).
+ * - Keine starre Spaltenbegrenzung beim Extrahieren mehr: Komplette Zeilen werden geprüft
+ *   und übernommen, sodass Schläuche ab Nummer 1 lückenlos geladen werden.
  */
 
 window.currentActiveCustomer = null;
@@ -73,7 +72,7 @@ window.AppData = {
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
               ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1 (valider Typ)
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
           } 
@@ -280,70 +279,58 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER MIT GETRENNTER SPALTENSUCHE UND ZEILENSCAN AB ZEILE 0
+  // 2. PARSER MIT TOLERANTEM .includes()-ABGLEICH UND VOLLSTÄNDIGER ZEILENEXTRAKTION AB ZEILE 0
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    let headerRowIndex = 3; // Standard-Fallback
-    let kennzColIndex = 0;
-
-    // A) Spaltensuche ("Kennz.") nur zur Ausrichtung der Spalten A bis R (unabhängig vom Zeilenstart)
-    for (let r = 0; r < targetRows.length; r++) {
-      const row = targetRows[r];
-      if (!Array.isArray(row)) continue;
-      for (let c = 0; c < row.length; c++) {
-        const val = String(row[c] || "").trim();
-        if (val.includes('Kennz.') || val.includes('Kennz') || val.includes('KENNZ')) {
-          headerRowIndex = r;
-          kennzColIndex = c;
-          break;
-        }
-      }
-      if (headerRowIndex !== 3) break;
-    }
-
     // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
     let headerCoords = [];
     for (let c = 0; c < 18; c++) {
-      headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
+      headerCoords.push({ originalRow: 3, originalCol: c });
     }
     coordinateMapping.push(headerCoords);
 
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // B) Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile kompromisslos
+    // Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile kompromisslos
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
-      let extractedSlice = [];
-      let rowCoords = [];
-      for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
-        extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
-        rowCoords.push({ originalRow: r, originalCol: c });
-      }
-
-      // Prüfe, ob in dieser Zeile ein gültiger Schlauchtyp enthalten ist
+      // Toleranter Typ-Abgleich per .includes() über die gesamte Zeile
       let hasValidHoseType = false;
-      for (let i = 0; i < extractedSlice.length; i++) {
-        const cellStr = String(extractedSlice[i] || "").toUpperCase().trim();
-        if (normalizedValidTypes.includes(cellStr)) {
-          hasValidHoseType = true;
-          break;
+      for (let c = 0; c < row.length; c++) {
+        const cellStr = String(row[c] || "").toUpperCase().trim();
+        if (cellStr !== "") {
+          for (let t = 0; t < normalizedValidTypes.length; t++) {
+            if (cellStr.includes(normalizedValidTypes[t])) {
+              hasValidHoseType = true;
+              break;
+            }
+          }
         }
+        if (hasValidHoseType) break;
       }
 
-      // Wenn kein gültiger Schlauchtyp in der Zeile steht (z.B. Vorspann, Überschrift, Leerzeile), überspringen!
+      // Wenn kein gültiger Schlauchtyp in der Zeile enthalten ist, überspringen!
       if (!hasValidHoseType) {
         continue;
       }
 
+      // Extrahiere bis zu 18 Spalten ab Spalte 0 der Zeile
+      let extractedSlice = [];
+      let rowCoords = [];
+      for (let c = 0; c < 18; c++) {
+        extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+        rowCoords.push({ originalRow: r, originalCol: c });
+      }
+
       // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
       const originalKennz = String(extractedSlice[0] || "").trim();
-      if (originalKennz === "") {
+      if (originalKennz === "" || isNaN(parseInt(originalKennz, 10))) {
         extractedSlice[0] = String(autoIncrementId++);
       } else {
         const numVal = parseInt(originalKennz, 10);
