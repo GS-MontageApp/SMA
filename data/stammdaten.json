@@ -1,0 +1,21 @@
+{
+  "version": "1.0.0",
+  "beschreibung": "Zentrale Stammdaten für das Schlauchmanagement (Schlauchtypen-Referenz)",
+  "letzte_aktualisierung": "2026-09-27",
+  "gueltige_schlauchtypen": [
+    "1SN",
+    "2SN",
+    "4SP",
+    "4SH",
+    "R13",
+    "R15",
+    "462",
+    "1TE",
+    "2TE",
+    "3TE",
+    "Minimess",
+    "Teflon",
+    "R4",
+    "2245N"
+  ]
+}
