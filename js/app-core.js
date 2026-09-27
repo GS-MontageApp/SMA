@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.47)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.48)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  * EXKLUSIVE ÄNDERUNG: 
- * 1. Kompletter Rückbau des doppelten Metadaten-Vorspanns (maximaler Platz auf dem Handy).
- * 2. Multi-Indizien-Detektor: Flexibler Start nach "Kennz.", zeilenweiser Scan ab Zeile 5,
- *    Validierung über Kennzeichnung, valide Nennweite (NW) und Länge > 0 als Hauptindikator.
+ * 1. Exakte Suche nach dem Tabellenanker "Kennz." (mit Punkt wie in der Vorlage).
+ * 2. Multi-Indizien-Detektor: Scannt strikt unterhalb des Headers ab Zeile 5.
+ *    Prüft verlässlich auf Kennzeichnung, Nennweite (NW) und Länge > 0.
  *    Stoppt zuverlässig am Unterschriften-Footer.
  */
 
@@ -72,7 +72,7 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Echter Spaltenkopf mit "Kennz."
               ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
@@ -240,18 +240,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // Helper zur Text-Normierung
-  function normalizeText(txt) {
-    if (!txt) return "";
-    return String(txt)
-      .toUpperCase()
-      .replace(/Ä/g, "AE")
-      .replace(/Ö/g, "OE")
-      .replace(/Ü/g, "UE")
-      .replace(/ß/g, "SS")
-      .trim();
-  }
-
   // 1. Blatt-Erkennung
   let targetRows = null;
   if (fileObj.sheets) {
@@ -266,11 +254,14 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       let hasKennz = false;
       for (let r = 0; r < rows.length; r++) {
         if (!Array.isArray(rows[r])) continue;
-        const rowNormalized = rows[r].map(c => normalizeText(c)).join(' ');
-        if (rowNormalized.includes('KENNZ') || rowNormalized.includes('KENNZEICHEN')) {
-          hasKennz = true;
-          break;
+        for (let c = 0; c < rows[r].length; c++) {
+          const val = String(rows[r][c] || "").trim();
+          if (val.includes('Kennz') || val.includes('KENNZ')) {
+            hasKennz = true;
+            break;
+          }
         }
+        if (hasKennz) break;
       }
 
       if (hasKennz || sheetName.toLowerCase() === 'tabelle1' || sheetName.toLowerCase() === 'tabelle 1') {
@@ -289,7 +280,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Multi-Indizien-Detektor (Suche nach "Kennz." / "KENNZ." und Auslesen ab Zeile 5 mit Längen- & NW-Indizien)
+  // 2. Präzise Suche nach exakt "Kennz." / "KENNZ." und Multi-Indizien-Detektor
   let rawData = [];
   let coordinateMapping = [];
   
@@ -297,12 +288,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
+    // Suche exakt nach der Zelle mit "Kennz." (oder Kennzeichen)
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
       for (let c = 0; c < row.length; c++) {
-        const valNorm = normalizeText(row[c]);
-        if (valNorm.includes('KENNZ') || valNorm.includes('KENNZEICHEN')) {
+        const val = String(row[c] || "").trim();
+        if (val.includes('Kennz.') || val.includes('Kennz') || val.includes('KENNZ')) {
           headerRowIndex = r;
           kennzColIndex = c;
           break;
@@ -311,8 +303,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== -1) break;
     }
 
-    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback Zeile 4
-    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback Spalte A
+    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback auf Zeile 4
+    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback auf Spalte A
 
     // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
@@ -324,7 +316,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
     let autoIncrementId = 1;
 
-    // Scan beginnt strikt ab Zeile 5 (headerRowIndex + 1)
+    // Scan beginnt strikt ab Zeile unterhalb von "Kennz." (headerRowIndex + 1)
     const dataStartIndex = headerRowIndex + 1;
 
     for (let r = dataStartIndex; r < targetRows.length; r++) {
@@ -339,27 +331,25 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       }
 
       // Prüfe auf Footer-Ende (Unterschriften / Ersteller / Klassifizierung)
-      const firstColText = normalizeText(extractedSlice[0]);
-      const secondColText = normalizeText(extractedSlice[1]);
+      const firstColText = String(extractedSlice[0] || "").toUpperCase().trim();
       if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG") || firstColText.includes("DOKUMENTATION")) {
         break; // Footer erreicht
       }
 
-      // MULTI-INDIZIEN-CHECK (Schlauch-Detektor):
-      // Indiz 1: Kennzeichnung in Spalte A vorhanden?
+      // MULTI-INDIZIEN-SCHLAUCHDETEKTOR:
       const originalKennz = String(extractedSlice[0] || "").trim();
       
-      // Indiz 2: Nennweite (NW) in Spalte C (Index 2) ist eine valide Zahl?
+      // Nennweite (Spalte 3 / Index 2)
       const nwVal = String(extractedSlice[2] || "").trim();
       const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
 
-      // Indiz 3 (Das Hauptindiz): Länge in Spalte F (Index 5) ist eine Zahl > 0?
+      // Länge (Spalte 6 / Index 5) - Hauptindikator > 0
       const laengeVal = String(extractedSlice[5] || "").trim();
       const hasValidLength = laengeVal !== "" && !isNaN(Number(laengeVal)) && Number(laengeVal) > 0;
 
-      // Wenn mindestens Länge > 0 ODER (Kennzeichnung + Nennweite) vorliegt, ist es ein valider Schlauch!
+      // Validiere, ob es ein echter Schlauch ist
       if (!hasValidLength && !(originalKennz !== "" && hasValidNW)) {
-        continue; // Leerzeile oder ungültiger Zwischeneintrag -> Überspringen
+        continue; // Leerzeile oder ungültig -> überspringen
       }
 
       // Kennzeichnung übernehmen oder Auto-Increment
@@ -381,7 +371,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe (ohne Vorspann)
+  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
