@@ -12,6 +12,7 @@
 
   <title id="page-title">Schlauchmanagement PWA v0.0.1</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css?v=v0.0.1">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -37,14 +38,13 @@
     window.submitPinLogin = function() {
       const pinInput = document.getElementById('pin_input');
       const pin = pinInput ? pinInput.value.trim() : '';
-      const headerEl = document.getElementById('main_header');
       const badgeEl = document.getElementById('role_status_badge');
       const logoutItem = document.getElementById('logout_menu_item');
 
       if (pin === '0633') {
         if (badgeEl) {
           badgeEl.textContent = '~/root';
-          badgeEl.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-600 text-white';
+          badgeEl.className = 'badge-root';
           badgeEl.classList.remove('hidden');
         }
         if (logoutItem) logoutItem.classList.remove('hidden');
@@ -53,7 +53,7 @@
       } else if (pin === '0449') {
         if (badgeEl) {
           badgeEl.textContent = '~/benutzer';
-          badgeEl.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-600 text-white';
+          badgeEl.className = 'badge-user';
           badgeEl.classList.remove('hidden');
         }
         if (logoutItem) logoutItem.classList.remove('hidden');
@@ -126,16 +126,6 @@
     window.closeTopMenu = function() {
       const menu = document.getElementById('top_menu_modal');
       if (menu) menu.classList.add('hidden');
-    };
-
-    window.openMehrModal = function() {
-      const modal = document.getElementById('mehr_modal');
-      if (modal) modal.classList.remove('hidden');
-    };
-
-    window.closeMehrModal = function() {
-      const modal = document.getElementById('mehr_modal');
-      if (modal) modal.classList.add('hidden');
     };
   </script>
 </head>
@@ -319,12 +309,12 @@
       
       if (savedRole === 'root' && badgeEl) {
         badgeEl.textContent = '~/root';
-        badgeEl.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-600 text-white';
+        badgeEl.className = 'badge-root';
         badgeEl.classList.remove('hidden');
         if (logoutItem) logoutItem.classList.remove('hidden');
       } else if (savedRole === 'user' && badgeEl) {
         badgeEl.textContent = '~/benutzer';
-        badgeEl.className = 'px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-600 text-white';
+        badgeEl.className = 'badge-user';
         badgeEl.classList.remove('hidden');
         if (logoutItem) logoutItem.classList.remove('hidden');
       }
