@@ -1,12 +1,13 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.56)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.57)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.56: 
- * - Garantiert absolut lückenlosen Zeilenscan ab Zeile 0 des erkannten Datenblatts.
- * - Exakter token-basierter Abgleich gegen VALID_SCHLAUCH_TYPES ohne Überspringen.
- * - Anti-Cache Version v0.1.56 Integration.
+ * ÄNDERUNG in v0.1.57: 
+ * - Vollständige Entkopplung von Spaltensuche ("Kennz.") und Zeilenscan.
+ * - Der Zeilenscan beginnt strikt ganz oben (Zeile 0) und prüft lückenlos bis zum Ende,
+ *   sodass Schläuche ab Nummer 1 (inkl. 1 bis 20) sofort erfasst werden.
+ * - Anti-Cache Version v0.1.57 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -279,23 +280,41 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER MIT LÜCKENLOSEM ZEILENSCAN AB ZEILE 0
+  // 2. PARSER MIT ENTKOPPELTER SPALTENSUCHE & LÜCKENLOSEM ZEILENSCAN AB ZEILE 0
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
+    // Spaltensuche ("Kennz.") nur zur Ausrichtung, unabhängig vom Zeilenstart
+    let headerRowIndex = 3;
+    let kennzColIndex = 0;
+
+    for (let r = 0; r < targetRows.length; r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const val = String(row[c] || "").trim();
+        if (val.includes('Kennz.') || val.includes('Kennz') || val.includes('KENNZ')) {
+          headerRowIndex = r;
+          kennzColIndex = c;
+          break;
+        }
+      }
+      if (headerRowIndex !== 3) break;
+    }
+
     // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
     let headerCoords = [];
     for (let c = 0; c < 18; c++) {
-      headerCoords.push({ originalRow: 3, originalCol: c });
+      headerCoords.push({ originalRow: headerRowIndex, originalCol: kennzColIndex + c });
     }
     coordinateMapping.push(headerCoords);
 
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Zeilenscan läuft strikt ab Zeile 0 (ganz oben) bis zum Dateiende durch
+    // ZEILENSCAN STARTET STRIKT GANZ OBEN (ZEILE 0) BIS ZUM ENDE
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
