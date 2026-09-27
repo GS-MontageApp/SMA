@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.1 === -->
+  <!-- === SMA v0.1.2 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.1</title>
+  <title id="page-title">Schlauchmanagement v0.1.2</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.1">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.2">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -78,26 +78,67 @@
           clients[clientName].push(fileName);
         }
         this.saveClients(clients);
+      },
+      removeFileFromClient: function(clientName, fileName) {
+        let clients = this.getClients();
+        if (clients[clientName]) {
+          clients[clientName] = clients[clientName].filter(f => f !== fileName);
+          // Wenn keine Dateien mehr übrig sind, Kunde optional behalten oder bereinigen (hier behalten wir den Kunden-Eintrag)
+          this.saveClients(clients);
+        }
+      },
+      removeClient: function(clientName) {
+        let clients = this.getClients();
+        delete clients[clientName];
+        this.saveClients(clients);
       }
     };
 
-    // UI-Aktualisierung des Dateipools
+    // Aktuell ausgewählter Kunde für die Dateilistenansicht
+    let currentActiveCustomer = null;
+
+    // UI-Aktualisierung des Dateipools (mit direktem Kunden-Löschbutton)
     window.renderDateipool = function() {
       const container = document.getElementById('dateipool_grid');
       if (!container) return;
       container.innerHTML = '';
       const clients = window.AppData.getClients();
 
-      Object.keys(clients).forEach(clientName => {
+      const customerKeys = Object.keys(clients);
+      if (customerKeys.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 py-2 col-span-full">Keine Kunden im Dateipool vorhanden.</p>';
+        return;
+      }
+
+      customerKeys.forEach(clientName => {
+        const fileCount = (clients[clientName] || []).length;
         const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex flex-col justify-between space-y-2';
-        card.innerHTML = `<div><h3 class="font-bold text-slate-700 text-base">${clientName}</h3></div>`;
-        card.onclick = () => window.openCustomerFiles(clientName);
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between group';
+        
+        // Klick auf die Kachel öffnet die Dateiliste
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'flex-1 cursor-pointer';
+        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${clientName}</h3><p class="text-xs text-slate-400 mt-0.5">${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'}</p>`;
+        infoDiv.onclick = () => window.openCustomerFiles(clientName);
+        card.appendChild(infoDiv);
+
+        // Löschen-Button für den Kunden
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
+        deleteBtn.title = 'Kunden löschen';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation();
+          window.confirmDeleteClient(clientName, fileCount);
+        };
+        card.appendChild(deleteBtn);
+
         container.appendChild(card);
       });
     };
 
     window.openCustomerFiles = function(customerName) {
+      currentActiveCustomer = customerName;
       document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
       const target = document.getElementById('view-customer-files');
       if (target) target.classList.remove('hidden');
@@ -105,25 +146,79 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = customerName;
 
+      window.renderCustomerFilesList();
+    };
+
+    window.renderCustomerFilesList = function() {
       const listContainer = document.getElementById('customer_files_list');
-      if (listContainer) {
-        listContainer.innerHTML = '';
-        const clients = window.AppData.getClients();
-        const files = clients[customerName] || [];
+      if (!listContainer || !currentActiveCustomer) return;
+      listContainer.innerHTML = '';
 
-        if (files.length === 0) {
-          listContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">Keine Dateien vorhanden.</p>';
-          return;
-        }
+      const clients = window.AppData.getClients();
+      const files = clients[currentActiveCustomer] || [];
 
-        files.forEach(file => {
-          const card = document.createElement('div');
-          card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 cursor-pointer transition-all shadow-xs flex justify-between items-center';
-          card.innerHTML = `<div><h3 class="font-bold text-slate-700 text-base">${file}</h3><p class="text-xs text-slate-500 mt-0.5">Lokal gespeichert (LocalStorage)</p></div><span class="text-xs font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-bold">Öffnen &rsaquo;</span>`;
-          card.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
-          listContainer.appendChild(card);
-        });
+      if (files.length === 0) {
+        listContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">Keine Dateien vorhanden.</p>';
+        return;
       }
+
+      files.forEach(file => {
+        const card = document.createElement('div');
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex justify-between items-center';
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'flex-1 cursor-pointer';
+        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${file}</h3><p class="text-xs text-slate-500 mt-0.5">Lokal gespeichert (LocalStorage)</p>`;
+        infoDiv.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
+        card.appendChild(infoDiv);
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'flex items-center gap-2';
+        
+        const openSpan = document.createElement('span');
+        openSpan.className = 'text-xs font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg font-bold cursor-pointer';
+        openSpan.innerHTML = 'Öffnen &rsaquo;';
+        openSpan.onclick = () => alert(`Öffne ${file} auf der Bearbeitungs-Bühne...`);
+        actionsDiv.appendChild(openSpan);
+
+        // Einzelner Datei-Löschen-Button
+        const delFileBtn = document.createElement('button');
+        delFileBtn.className = 'p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
+        delFileBtn.title = 'Datei löschen';
+        delFileBtn.innerHTML = '🗑️';
+        delFileBtn.onclick = () => {
+          window.confirmDeleteFile(currentActiveCustomer, file);
+        };
+        actionsDiv.appendChild(delFileBtn);
+
+        card.appendChild(actionsDiv);
+        listContainer.appendChild(card);
+      });
+    };
+
+    // Lösch-Sicherheitsabfragen mit dynamischer Anzahl
+    window.confirmDeleteFile = function(clientName, fileName) {
+      window.showSystemModal(
+        'Datei löschen',
+        `Möchten Sie die Datei "${fileName}" wirklich unwiderruflich löschen?`,
+        function() {
+          window.AppData.removeFileFromClient(clientName, fileName);
+          window.renderCustomerFilesList();
+          window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
+        }
+      );
+    };
+
+    window.confirmDeleteClient = function(clientName, fileCount) {
+      window.showSystemModal(
+        'Kunden löschen',
+        `Möchten Sie wirklich den Kunden "${clientName}" und die zugehörigen ${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'} löschen?`,
+        function() {
+          window.AppData.removeClient(clientName);
+          window.renderDateipool();
+          window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
+        }
+      );
     };
 
     // Einheitliches System-Overlay für Meldungen & Sicherheitsabfragen
@@ -145,7 +240,6 @@
         cancelBtn.classList.add('hidden');
       }
 
-      // Event-Listener bereinigen und neu setzen
       const newConfirmBtn = confirmBtn.cloneNode(true);
       confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
@@ -161,7 +255,6 @@
       modal.classList.remove('hidden');
     };
 
-    // Globaler Zwischenspeicher für den aktiven Import-Vorgang
     let pendingImportData = null;
 
     // Excel-Upload & automatisches Auslesen des Kundennamens
@@ -176,7 +269,6 @@
           const workbook = XLSX.read(data, { type: 'array' });
           let foundCustomer = null;
 
-          // Durchsuche alle Tabellenblätter nach dem Wort "Kunde"
           workbook.SheetNames.forEach(sheetName => {
             const sheet = workbook.Sheets[sheetName];
             const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -198,13 +290,11 @@
 
           pendingImportData = { client: foundCustomer, filename: file.name };
 
-          // Sicherheitsprüfung: Existiert die Datei bereits beim Kunden?
           if (window.AppData.hasFile(foundCustomer, file.name)) {
             window.showSystemModal(
               'Datei bereits vorhanden',
               `Die Datei "${file.name}" existiert bereits für ${foundCustomer}. Möchten Sie die vorhandene Version überschreiben?`,
               function() {
-                // Bestätigt: Überschreiben
                 window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename);
                 window.renderDateipool();
                 window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${pendingImportData.client} aktualisiert.`, null, false);
@@ -212,7 +302,6 @@
               }
             );
           } else {
-            // Direkt speichern
             window.AppData.addFileToClient(foundCustomer, file.name);
             window.renderDateipool();
             window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${foundCustomer}\nDatei: ${file.name}`, null, false);
@@ -223,7 +312,7 @@
           console.error(err);
           window.showSystemModal('Fehler', 'Fehler beim Einlesen der Excel-Datei. Bitte prüfen Sie das Dateiformat.', null, false);
         } finally {
-          event.target.value = ''; // Reset Input
+          event.target.value = '';
         }
       };
       reader.readAsArrayBuffer(file);
@@ -241,7 +330,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.1.1"></script>
+  <script src="js/auth.js?v=v0.1.2"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -349,7 +438,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.1</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.2</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
