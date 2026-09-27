@@ -1,12 +1,13 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.54)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.55)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.54: 
- * - .includes() wurde komplett entfernt. Strikter, exakter Abgleich auf gültige Schlauchtypen.
- * - Keine starre Spaltenfenster-Begrenzung mehr: Zeilen werden ab Spalte 0 über die volle 
- *   Verfügbarkeit eingelesen, wodurch Schläuche ab Nummer 1 lückenlos erscheinen.
+ * ÄNDERUNG in v0.1.55: 
+ * - Frisches Release zur Behebung des Browser-Caching-Effekts.
+ * - Exakter, token-basierter Typ-Abgleich gegen VALID_SCHLAUCH_TYPES (kein .includes()).
+ * - Vollständige Extraktion der Zeilen ab Spalte 0 über die volle Breite (keine starre Spaltenbegrenzung).
+ * - Zeilenscan läuft sauber und lückenlos von oben nach unten ab Zeile 0 durch.
  */
 
 window.currentActiveCustomer = null;
