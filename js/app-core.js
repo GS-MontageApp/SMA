@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.26)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.27)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -128,7 +128,9 @@ window.switchApp = function(viewId, titleText) {
   if (titleEl) titleEl.textContent = titleText;
 
   if (viewId === 'dateipool') {
-    window.UIPool.renderDateipool();
+    if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
+      window.UIPool.renderDateipool();
+    }
   }
 };
 
@@ -165,7 +167,9 @@ window.openCustomerFiles = function(customerName) {
   const titleEl = document.getElementById('header-title');
   if (titleEl) titleEl.textContent = customerName;
 
-  window.UIPool.renderCustomerFilesList(window.currentActiveCustomer);
+  if (window.UIPool && typeof window.UIPool.renderCustomerFilesList === 'function') {
+    window.UIPool.renderCustomerFilesList(window.currentActiveCustomer);
+  }
 };
 
 window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
@@ -273,7 +277,9 @@ window.confirmDeleteFile = function(clientName, fileName) {
       window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === clientName && item.fileName === fileName));
       window.updateFooterOpenFiles();
       window.saveSessionState();
-      window.UIPool.renderCustomerFilesList(window.currentActiveCustomer);
+      if (window.UIPool && typeof window.UIPool.renderCustomerFilesList === 'function') {
+        window.UIPool.renderCustomerFilesList(window.currentActiveCustomer);
+      }
       window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
     }
   );
@@ -288,7 +294,9 @@ window.confirmDeleteClient = function(clientName, fileCount) {
       window.openedFilesStack = window.openedFilesStack.filter(item => item.clientName !== clientName);
       window.updateFooterOpenFiles();
       window.saveSessionState();
-      window.UIPool.renderDateipool();
+      if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
+        window.UIPool.renderDateipool();
+      }
       window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
     }
   );
@@ -353,14 +361,18 @@ window.handleExcelImport = function(event) {
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
             window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
-            window.UIPool.renderDateipool();
+            if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
+              window.UIPool.renderDateipool();
+            }
             window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${parsed.client} aktualisiert.`, null, false);
             window.switchApp('dateipool', 'Dateipool');
           }
         );
       } else {
         window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData);
-        window.UIPool.renderDateipool();
+        if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
+          window.UIPool.renderDateipool();
+        }
         window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${parsed.client}\nDatei: ${parsed.filename}`, null, false);
         window.switchApp('dateipool', 'Dateipool');
       }
