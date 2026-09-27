@@ -1,19 +1,10 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.7)
- * ============================================================================
- * Verantwortlich für:
- * - Einlesen und Verarbeiten von .xls / .xlsx-Dateien via SheetJS
- * - Strenge Vorab-Validierung (Crash-Schutz & Dateigrößen-Check)
- * - Automatisches Extrahieren des Kundennamens (Schlüsselwort "Kunde")
- * - Bereitstellung der echten Tabellendaten für die Aktive Bearbeitungs-Bühne
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.8)
  * ============================================================================
  */
 
 window.ExcelParser = {
-  /**
-   * Validiert die Rohdatei vor dem Einlesen (Maximalgröße ca. 600 KB zum Schutz mobil. Browser).
-   */
   validateFile: function(file) {
     if (!file) {
       throw new Error("Keine Datei ausgewählt.");
@@ -26,18 +17,14 @@ window.ExcelParser = {
       throw new Error("Ungültiges Dateiformat. Bitte nur .xls oder .xlsx Dateien verwenden.");
     }
 
-    // Limitprüfung (Max. ~650 KB)
     const maxSize = 650 * 1024;
     if (file.size > maxSize) {
-      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz des Arbeitsspeichers mobiler Browser ist die Dateigröße limitiert.");
+      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz mobiler Browser limitiert.");
     }
 
     return true;
   },
 
-  /**
-   * Parst die Excel-Datei, sucht nach dem Kunden und extrahiert die Tabellenzeilen.
-   */
   parseFileBuffer: function(arrayBuffer, fileName) {
     try {
       const data = new Uint8Array(arrayBuffer);
