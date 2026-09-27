@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.5 === -->
+  <!-- === SMA v0.1.6 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.5</title>
+  <title id="page-title">Schlauchmanagement v0.1.6</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.5">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -63,11 +63,11 @@
         const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         return {
           "Kunde 1": [
-            { name: "Kunde 1 Datei 1.xlsx", timestamp: nowStr },
-            { name: "Kunde 1 Datei 2.xlsx", timestamp: nowStr }
+            { name: "Kunde 1 Datei 1.xlsx", timestamp: nowStr, rawData: [["Kunde", "Kunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] },
+            { name: "Kunde 1 Datei 2.xlsx", timestamp: nowStr, rawData: [["Kunde", "Kunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-101", "1SN", "800", "160"]] }
           ],
           "Kunde 2": [
-            { name: "Kunde 2 Datei 1.xlsx", timestamp: nowStr }
+            { name: "Kunde 2 Datei 1.xlsx", timestamp: nowStr, rawData: [["Kunde", "Kunde 2"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-201", "R1AT", "1200", "180"]] }
           ]
         };
       },
@@ -79,7 +79,7 @@
         if (!clients[clientName]) return false;
         return clients[clientName].some(f => f.name === fileName);
       },
-      addFileToClient: function(clientName, fileName) {
+      addFileToClient: function(clientName, fileName, rawData = null) {
         let clients = this.getClients();
         if (!clients[clientName]) {
           clients[clientName] = [];
@@ -89,8 +89,13 @@
         const existingIdx = clients[clientName].findIndex(f => f.name === fileName);
         if (existingIdx >= 0) {
           clients[clientName][existingIdx].timestamp = nowStr;
+          if (rawData) clients[clientName][existingIdx].rawData = rawData;
         } else {
-          clients[clientName].push({ name: fileName, timestamp: nowStr });
+          clients[clientName].push({ 
+            name: fileName, 
+            timestamp: nowStr, 
+            rawData: rawData || [["Kunde", clientName], ["Info", "Importierte Schlauchliste"]] 
+          });
         }
         this.saveClients(clients);
       },
@@ -179,18 +184,19 @@
         const timestamp = typeof fileObj === 'string' ? 'Unbekannt' : fileObj.timestamp;
 
         const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between gap-3 cursor-pointer';
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex flex-col justify-between gap-3 cursor-pointer relative';
         
-        // Gesamte Kachel antippen öffnet die Datei auf der Bühne
-        card.onclick = () => alert(`Öffne ${fileName} auf der Bearbeitungs-Bühne...`);
+        // Klick auf die Kachel öffnet die Datei auf der Bearbeitungs-Bühne
+        card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName);
 
         const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1 min-w-0';
+        infoDiv.className = 'flex-1 min-w-0 pr-8'; // Platzhalter für den Button unten rechts
         infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base break-all">${fileName}</h3><p class="text-xs text-slate-500 mt-1">Zuletzt lokal gespeichert: ${timestamp}</p>`;
         card.appendChild(infoDiv);
 
+        // Lösch-Button exakt unten rechts platziert
         const delFileBtn = document.createElement('button');
-        delFileBtn.className = 'p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm shrink-0';
+        delFileBtn.className = 'absolute bottom-3 right-3 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
         delFileBtn.title = 'Datei löschen';
         delFileBtn.innerHTML = '🗑️';
         delFileBtn.onclick = (e) => {
@@ -201,6 +207,67 @@
 
         listContainer.appendChild(card);
       });
+    };
+
+    // Datei auf der Aktiven Bearbeitungs-Bühne öffnen (Read-Only Tabelle mit Sticky Header)
+    window.openFileOnStage = function(clientName, fileName) {
+      const clients = window.AppData.getClients();
+      const fileList = clients[clientName] || [];
+      const fileObj = fileList.find(f => (typeof f === 'string' ? f === fileName : f.name === fileName));
+
+      if (!fileObj) {
+        window.showSystemModal('Fehler', 'Die angeforderte Datei konnte nicht gefunden werden.', null, false);
+        return;
+      }
+
+      const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
+
+      document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
+      const stageView = document.getElementById('view-buehne');
+      if (stageView) stageView.classList.remove('hidden');
+
+      const titleEl = document.getElementById('header-title');
+      if (titleEl) titleEl.textContent = `${clientName} / ${fileName}`;
+
+      const container = document.getElementById('buehne_table_container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      // Tabellen-Wrapper mit Scroll-Container und Sticky Header
+      const wrapper = document.createElement('div');
+      wrapper.className = 'overflow-x-auto max-h-[65vh] rounded-xl border border-slate-200 bg-white shadow-xs';
+
+      const table = document.createElement('table');
+      table.className = 'w-full text-left border-collapse text-xs text-slate-700';
+
+      const thead = document.createElement('thead');
+      thead.className = 'sticky top-0 bg-slate-100 text-slate-800 font-bold border-b border-slate-300 shadow-xs z-10';
+      
+      const tbody = document.createElement('tbody');
+      tbody.className = 'divide-y divide-slate-100';
+
+      rawData.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        tr.className = rowIndex === 0 ? 'bg-slate-50' : 'hover:bg-slate-50/80 transition-colors';
+
+        row.forEach((cellVal) => {
+          const cell = rowIndex === 0 ? document.createElement('th') : document.createElement('td');
+          cell.className = 'px-3 py-2.5 whitespace-nowrap ' + (rowIndex === 0 ? 'font-bold text-slate-700' : 'text-slate-600');
+          cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
+          tr.appendChild(cell);
+        });
+
+        if (rowIndex === 0) {
+          thead.appendChild(tr);
+        } else {
+          tbody.appendChild(tr);
+        }
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+      container.appendChild(wrapper);
     };
 
     // Lösch-Sicherheitsabfragen mit dynamischer Anzahl
@@ -264,7 +331,7 @@
 
     let pendingImportData = null;
 
-    // Excel-Upload & automatisches Auslesen des Kundennamens
+    // Excel-Upload & automatisches Auslesen des Kundennamens & Tabellendaten
     window.handleExcelImport = function(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -275,10 +342,14 @@
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
           let foundCustomer = null;
+          let extractedRows = [];
 
           workbook.SheetNames.forEach(sheetName => {
             const sheet = workbook.Sheets[sheetName];
             const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            if (jsonSheet.length > 0 && extractedRows.length === 0) {
+              extractedRows = jsonSheet;
+            }
 
             jsonSheet.forEach(row => {
               row.forEach((cellVal, colIdx) => {
@@ -295,21 +366,21 @@
             foundCustomer = file.name.replace(/\.[^/.]+$/, "");
           }
 
-          pendingImportData = { client: foundCustomer, filename: file.name };
+          pendingImportData = { client: foundCustomer, filename: file.name, rawData: extractedRows };
 
           if (window.AppData.hasFile(foundCustomer, file.name)) {
             window.showSystemModal(
               'Datei bereits vorhanden',
               `Die Datei "${file.name}" existiert bereits für ${foundCustomer}. Möchten Sie die vorhandene Version überschreiben?`,
               function() {
-                window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename);
+                window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData);
                 window.renderDateipool();
                 window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${pendingImportData.client} aktualisiert.`, null, false);
                 window.switchApp('dateipool', 'Dateipool');
               }
             );
           } else {
-            window.AppData.addFileToClient(foundCustomer, file.name);
+            window.AppData.addFileToClient(foundCustomer, file.name, pendingImportData.rawData);
             window.renderDateipool();
             window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${foundCustomer}\nDatei: ${file.name}`, null, false);
             window.switchApp('dateipool', 'Dateipool');
@@ -337,7 +408,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.1.5"></script>
+  <script src="js/auth.js?v=v0.1.6"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -379,7 +450,7 @@
           <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dateiansicht</span>
           <button onclick="switchApp('dateipool', 'Dateipool')" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Kundenübersicht</button>
         </div>
-        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu bearbeiten.</p>
+        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu öffnen.</p>
         
         <!-- Dynamischer Container für die Dateiliste -->
         <div id="customer_files_list" class="space-y-2.5 pt-2">
@@ -388,13 +459,18 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG -->
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Read-Only Tabellenansicht mit Sticky Header) -->
     <div id="view-buehne" class="app-view hidden space-y-4 flex-1">
       <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Aktive Bearbeitungs-Bühne</h2>
-        <div class="p-6 text-center text-slate-400 space-y-2">
-          <div class="text-3xl">📋</div>
-          <p class="text-sm">Keine Datei aktiv. Wählen Sie eine Datei aus, um sie hier zu bearbeiten.</p>
+        <div class="flex items-center justify-between border-b pb-1.5">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bearbeitungs-Bühne (Read-Only)</span>
+          <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
+        </div>
+        <p class="text-xs text-slate-500">Ansicht der eingelesenen Schlauchliste. Der Tabellenkopf scrollt automatisch mit.</p>
+        
+        <!-- Dynamischer Tabellen-Container -->
+        <div id="buehne_table_container" class="pt-2">
+          <!-- Wird per JS gefüllt -->
         </div>
       </section>
     </div>
@@ -445,7 +521,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.5</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.6</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
