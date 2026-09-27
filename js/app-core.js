@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.21)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.22)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -385,7 +385,7 @@ window.closeTopMenu = function() {
   if (menu) menu.classList.add('hidden');
 };
 
-// Granulares Cache-Lösch-Modal öffnen (Checkboxen standardmäßig leer)
+// Granulares Cache-Lösch-Modal öffnen
 window.openCacheClearModal = function() {
   window.closeTopMenu();
   const modal = document.getElementById('cache_clear_modal');
@@ -400,7 +400,7 @@ window.closeCacheClearModal = function() {
   if (modal) modal.classList.add('hidden');
 };
 
-// Ausgewählte Cache-Bereiche bereinigen (inkl. vollständigem Auth-Reset)
+// Ausgewählte Cache-Bereiche bereinigen (inkl. hartem Auth-Reset)
 window.executeGranularCacheClear = function() {
   const clearSession = document.getElementById('chk_session')?.checked;
   const clearClients = document.getElementById('chk_clients')?.checked;
@@ -421,7 +421,7 @@ window.executeGranularCacheClear = function() {
   }
   if (clearAuth) {
     localStorage.removeItem('sma_current_user');
-    // Auch im AuthManager hart zurücksetzen
+    // Auth-Reset hart erzwingen
     if (window.AuthManager && typeof window.AuthManager.forceReset === 'function') {
       window.AuthManager.forceReset();
     }
