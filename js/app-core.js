@@ -1,20 +1,20 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.58)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.59)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.58: 
- * - Komplette und restlose Deaktivierung jeglicher Spaltenbegrenzung. 
- * - Die Zeilen werden in ihrer vollen, originalen Breite (von Spalte 0 bis zum Ende der Zeile) eingelesen.
- * - Zeilenscan läuft strikt ab Zeile 0 durch, sodass Schläuche ab Nummer 1 lückenlos angezeigt werden.
- * - Anti-Cache Version v0.1.58 Integration.
+ * ÄNDERUNG in v0.1.59: 
+ * - SPALTENBEGRENZUNG VOLLSTÄNDIG DEAKTIVIERT (Schritt 2).
+ * - Jede Zeile wird in ihrer absoluten, originalen physikalischen Breite (von Spalte 0 bis row.length) eingelesen.
+ * - Zeilenscan läuft strikt ab Zeile 0 durch, sodass alle Daten und Schläuche lückenlos angezeigt werden.
+ * - Anti-Cache Version v0.1.59 Integration.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
 
-// Fester Master-Katalog als Standard-Header
+// Fester Master-Katalog als Fallback-Header
 window.MASTER_CATALOG_HEADERS = [
   "Kennz.",
   "Schlauch",
@@ -280,12 +280,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER OHNE JEGLICHE SPALTENBEGRENZUNG: VOLLE ORIGINALBREITE AB ZEILE 0
+  // 2. PARSER OHNE SPALTENBEGRENZUNG (SCHRITT 2 DEAKTIVIERT): VOLLE PHYSIKALISCHE BREITE AB ZEILE 0
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    // Ermittle maximale Spaltenbreite im gesamten Sheet, um nichts abzuschneiden
+    // Ermittle die absolute maximale Spaltenbreite im gesamten Sheet, um absolut nichts abzuschneiden
     let maxCols = window.MASTER_CATALOG_HEADERS.length;
     for (let r = 0; r < targetRows.length; r++) {
       if (Array.isArray(targetRows[r])) {
@@ -293,7 +293,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       }
     }
 
-    // Finde Header-Zeile oder nutze Fallback
+    // Finde Header-Zeile für die Spaltenbeschriftung
     let headerRowIndex = 3;
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
@@ -308,7 +308,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== 3) break;
     }
 
-    // Verwende entweder die Header-Zeile der Originaldatei als Tabellenkopf oder den Master-Katalog erweitert um alle Spalten
+    // Baue die Spaltenüberschriften in voller physikalischer Breite auf
     let dynamicHeaders = [];
     let headerCoords = [];
     if (headerRowIndex >= 0 && targetRows[headerRowIndex] && Array.isArray(targetRows[headerRowIndex])) {
@@ -330,7 +330,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile über die volle Breite
+    // Zeilenscan läuft strikt ganz oben (Zeile 0) bis zum Ende durch
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -350,7 +350,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         continue;
       }
 
-      // Volle Spaltenbreite ohne jegliche Begrenzung extrahieren
+      // SPALTENBEGRENZUNG DEAKTIVIERT: Extrahiere JEDE Spalte von 0 bis zur vollen Zeilenbreite (maxCols)
       let extractedSlice = [];
       let rowCoords = [];
       for (let c = 0; c < maxCols; c++) {
@@ -378,7 +378,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe und voller Breite
+  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe und voller unbegrenzter Breite
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
