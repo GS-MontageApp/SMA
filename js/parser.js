@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.22)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.23)
  * ============================================================================
- * Erfasst intelligent Metadaten (Kunde & Anlage in der rechten Zelle)
- * und filtert relevante Tabellenstrukturen von unwichtigen Randdaten.
+ * Extrahiert intelligent Kunde & Anlage und bereinigt den Kundennamen 
+ * von technischen Suffixen (wie TKS_{FBA5} etc.).
  */
 
 window.ExcelParser = {
@@ -36,7 +36,6 @@ window.ExcelParser = {
       let foundPlant = null;
       let rawRows = [];
 
-      // Alle Sheets durchgehen
       workbook.SheetNames.forEach(sheetName => {
         const sheet = workbook.Sheets[sheetName];
         const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -45,7 +44,6 @@ window.ExcelParser = {
           rawRows = jsonSheet;
         }
 
-        // Intelligente Suche nach Labels "Kunde" und "Anlage" (Wert steht in der Zelle rechts daneben)
         jsonSheet.forEach(row => {
           row.forEach((cellVal, colIdx) => {
             if (cellVal && typeof cellVal === 'string') {
@@ -67,18 +65,25 @@ window.ExcelParser = {
         });
       });
 
-      // Fallback für Kundenname, falls nicht im Dokument gefunden
       if (!foundCustomer) {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      // Filterung & Strukturierung: Wichtige Tabellenzeilen extrahieren
+      // Strikte Bereinigung des Kundennamens von angehängten technischen Suffixen / Klammern / IDs
+      if (foundCustomer) {
+        // Entfernt alles ab geschweiften Klammern {..., TKS_{...} etc.
+        foundCustomer = foundCustomer.replace(/[{[].*?[}\]]/g, '').trim();
+        // Entfernt doppelte Leerzeichen
+        foundCustomer = foundCustomer.replace(/\s+/g, ' ');
+      }
+
+      // Filterung der Tabellendaten
       let filteredRows = [];
       let headerFound = false;
 
       rawRows.forEach(row => {
         const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-        if (!hasContent) return; // Leerzeilen verwerfen
+        if (!hasContent) return;
 
         const rowString = row.join(' ').toLowerCase();
         if (rowString.includes('kunde') || rowString.includes('anlage')) {
