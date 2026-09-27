@@ -1,8 +1,8 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.21)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.22)
  * ============================================================================
- * Intelligent erfasst der Parser Metadaten (Kunde & Anlage in der rechten Zelle)
+ * Erfasst intelligent Metadaten (Kunde & Anlage in der rechten Zelle)
  * und filtert relevante Tabellenstrukturen von unwichtigen Randdaten.
  */
 
@@ -51,14 +51,12 @@ window.ExcelParser = {
             if (cellVal && typeof cellVal === 'string') {
               const text = cellVal.trim().toLowerCase();
               
-              // Suche nach Kunde -> Wert rechts daneben
               if (text === 'kunde' || text === 'kundenname') {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundCustomer = String(row[colIdx + 1]).trim();
                 }
               }
 
-              // Suche nach Anlage -> Wert rechts daneben
               if (text === 'anlage' || text === 'anlagenbezeichnung') {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundPlant = String(row[colIdx + 1]).trim();
@@ -79,19 +77,15 @@ window.ExcelParser = {
       let headerFound = false;
 
       rawRows.forEach(row => {
-        // Prüfen, ob die Zeile echte Daten oder Header enthält (nicht nur leer)
         const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-        if (!hasContent) return; // Leerzeilen (unwichtig) verwerfen
+        if (!hasContent) return; // Leerzeilen verwerfen
 
-        // Prüfen ob es sich um eine Metadaten-Zeile "Kunde / Anlage" handelt (optional in Tabelle)
         const rowString = row.join(' ').toLowerCase();
         if (rowString.includes('kunde') || rowString.includes('anlage')) {
-          // Als Metadaten erkannt, aber für die reine Datentabelle optional oder als Info
           filteredRows.push(row);
           return;
         }
 
-        // Erkennung des Tabellenkopfes (Schlauch-Attribute)
         if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
           headerFound = true;
           filteredRows.push(row);
@@ -103,12 +97,10 @@ window.ExcelParser = {
         }
       });
 
-      // Fallback falls keine strukturierte Tabelle erkannt wurde
       if (filteredRows.length === 0) {
         filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
-      // Wenn eine Anlage gefunden wurde, hängen wir sie dem Kundennamen an oder sichern sie im Objekt
       const finalClientName = foundPlant ? `${foundCustomer} (${foundPlant})` : foundCustomer;
 
       return {
