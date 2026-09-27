@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.11 === -->
+  <!-- === SMA v0.1.12 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.11</title>
+  <title id="page-title">Schlauchmanagement v0.1.12</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.11">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.12">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -119,9 +119,9 @@
 
     let currentActiveCustomer = null;
     let currentActiveFileName = null;
-    let openedFilesStack = []; // LIFO: Zuletzt geöffnete Datei ist ganz links
+    let openedFilesStack = []; // Enthält Objekte: { clientName, fileName }
 
-    // Multi-File Footer aktualisieren (nur Dateinamen, LIFO-Reihenfolge)
+    // Multi-File Footer aktualisieren mit exakter Kunden-Zuordnung & LIFO
     window.updateFooterOpenFiles = function() {
       const container = document.getElementById('file_tabs_container');
       if (!container) return;
@@ -132,15 +132,15 @@
         return;
       }
 
-      openedFilesStack.forEach(fileName => {
+      openedFilesStack.forEach(item => {
+        const isCurrent = (item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName);
         const badge = document.createElement('div');
-        badge.className = 'bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-[200px] truncate cursor-pointer transition-colors';
-        badge.title = fileName;
-        badge.innerHTML = `<span class="truncate">${fileName}</span>`;
+        badge.className = (isCurrent ? 'bg-indigo-700 ring-2 ring-indigo-300 ' : 'bg-indigo-600 hover:bg-indigo-700 ') + 
+                          'text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-[200px] truncate cursor-pointer transition-colors';
+        badge.title = `${item.clientName} / ${item.fileName}`;
+        badge.innerHTML = `<span class="truncate">${item.fileName}</span>`;
         badge.onclick = () => {
-          if (currentActiveCustomer) {
-            window.openFileOnStage(currentActiveCustomer, fileName, false);
-          }
+          window.openFileOnStage(item.clientName, item.fileName, false);
         };
         container.appendChild(badge);
       });
@@ -239,22 +239,23 @@
       });
     };
 
-    // Aktive Bearbeitungs-Bühne öffnen & in LIFO-Stack aufnehmen
+    // Bearbeitungs-Bühne öffnen mit robustem Kundenzuordnungs-Stack
     window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const clients = window.AppData.getClients();
       const fileList = clients[clientName] || [];
       const fileObj = fileList.find(f => f && f.name === fileName);
 
       if (!fileObj) {
-        window.showSystemModal('Fehler', 'Die angeforderte Datei konnte nicht gefunden werden.', null, false);
+        window.showSystemModal('Fehler', `Die angeforderte Datei "${fileName}" für Kunde "${clientName}" konnte nicht gefunden werden.`, null, false);
         return;
       }
 
+      currentActiveCustomer = clientName;
       currentActiveFileName = fileName;
 
       if (pushToStack) {
-        openedFilesStack = openedFilesStack.filter(f => f !== fileName);
-        openedFilesStack.unshift(fileName);
+        openedFilesStack = openedFilesStack.filter(item => !(item.clientName === clientName && item.fileName === fileName));
+        openedFilesStack.unshift({ clientName, fileName });
       }
 
       window.updateFooterOpenFiles();
@@ -308,7 +309,7 @@
       container.appendChild(wrapper);
     };
 
-    // Excel-Tabelle auf der Bühne schließen, automatisch im LocalStorage speichern und aus Footer entfernen
+    // Excel-Tabelle auf der Bühne schließen mit Auto-Save & Fokus auf den linken Nachbarn (Best Practice)
     window.closeFileOnStage = function() {
       if (currentActiveCustomer && currentActiveFileName) {
         const clients = window.AppData.getClients();
@@ -317,15 +318,22 @@
         if (fileObj) {
           window.AppData.addFileToClient(currentActiveCustomer, currentActiveFileName, fileObj.rawData);
         }
-        openedFilesStack = openedFilesStack.filter(f => f !== currentActiveFileName);
+        // Aus Stack entfernen
+        openedFilesStack = openedFilesStack.filter(item => !(item.clientName === currentActiveCustomer && item.fileName === currentActiveFileName));
       }
 
-      window.updateFooterOpenFiles();
-      
-      if (currentActiveCustomer) {
-        window.openCustomerFiles(currentActiveCustomer);
+      if (openedFilesStack.length > 0) {
+        // Fokus auf den linken Nachbarn (erstes Element im Stack nach dem Entfernen)
+        const nextItem = openedFilesStack[0];
+        window.openFileOnStage(nextItem.clientName, nextItem.fileName, false);
       } else {
-        window.switchApp('dateipool', 'Dateipool');
+        // Keine Datei mehr offen -> zurück zur Kunden-Dateiliste
+        window.updateFooterOpenFiles();
+        if (currentActiveCustomer) {
+          window.openCustomerFiles(currentActiveCustomer);
+        } else {
+          window.switchApp('dateipool', 'Dateipool');
+        }
       }
     };
 
@@ -335,7 +343,7 @@
         `Möchten Sie die Datei "${fileName}" wirklich unwiderruflich löschen?`,
         function() {
           window.AppData.removeFileFromClient(clientName, fileName);
-          openedFilesStack = openedFilesStack.filter(f => f !== fileName);
+          openedFilesStack = openedFilesStack.filter(item => !(item.clientName === clientName && item.fileName === fileName));
           window.updateFooterOpenFiles();
           window.renderCustomerFilesList();
           window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
@@ -349,6 +357,8 @@
         `Möchten Sie wirklich den Kunden "${clientName}" und die zugehörigen ${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'} löschen?`,
         function() {
           window.AppData.removeClient(clientName);
+          openedFilesStack = openedFilesStack.filter(item => item.clientName !== clientName);
+          window.updateFooterOpenFiles();
           window.renderDateipool();
           window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
         }
@@ -448,8 +458,8 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.11"></script>
-  <script src="js/auth.js?v=v0.1.11"></script>
+  <script src="js/parser.js?v=v0.1.12"></script>
+  <script src="js/auth.js?v=v0.1.12"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -498,7 +508,7 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus mit Schließen-Button links & Zurück-Link rechts) -->
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus) -->
     <div id="view-buehne" class="app-view hidden flex-1 flex flex-col -mx-3 -mt-3">
       <div class="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between shrink-0">
         <button onclick="closeFileOnStage()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-2xs">
@@ -524,7 +534,7 @@
 
   </main>
 
-  <!-- Footer Navigation mit Multi-File Kacheln (LIFO von links) -->
+  <!-- Footer Navigation mit Multi-File Kacheln -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
     <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto">
       <!-- Wird dynamisch belegt -->
@@ -557,7 +567,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.11</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.12</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
