@@ -1,10 +1,13 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.46)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.47)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Fehlertolerante Suche nach "Kennz." (Groß-/Kleinschreibung & Punkt-Inklusiv),
- * exakter Start ab Zeile 5 (headerRowIndex + 1), robustes Stammdaten-Matching & Nennweiten-Joker.
+ * EXKLUSIVE ÄNDERUNG: 
+ * 1. Kompletter Rückbau des doppelten Metadaten-Vorspanns (maximaler Platz auf dem Handy).
+ * 2. Multi-Indizien-Detektor: Flexibler Start nach "Kennz.", zeilenweiser Scan ab Zeile 5,
+ *    Validierung über Kennzeichnung, valide Nennweite (NW) und Länge > 0 als Hauptindikator.
+ *    Stoppt zuverlässig am Unterschriften-Footer.
  */
 
 window.currentActiveCustomer = null;
@@ -69,8 +72,8 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf mit "Kennz."
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Start bei Schlauch 1
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
           } 
@@ -286,30 +289,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Metadaten extrahieren für den Vorspann
-  let kundeVal = "-";
-  let versionVal = "1";
-  let anlageVal = "-";
-
-  if (targetRows && Array.isArray(targetRows)) {
-    for (let r = 0; r < Math.min(targetRows.length, 4); r++) {
-      const row = targetRows[r];
-      if (!Array.isArray(row)) continue;
-      for (let c = 0; c < row.length; c++) {
-        const val = String(row[c] || "").trim();
-        const valNorm = normalizeText(val);
-        if (valNorm === "KUNDE" && row[c+1]) kundeVal = String(row[c+1]);
-        if (valNorm.includes("VERSION") && row[c+1]) versionVal = String(row[c+1]);
-        if (valNorm === "ANLAGE" && row[c+1]) anlageVal = String(row[c+1]);
-      }
-    }
-  }
-
-  document.getElementById('meta_kunde').textContent = kundeVal !== "-" ? kundeVal : (clientName || "Hettich");
-  document.getElementById('meta_version').textContent = versionVal;
-  document.getElementById('meta_anlage').textContent = anlageVal !== "-" ? anlageVal : "Hubtisch 4";
-
-  // 3. Präzise Erkennung: Suche nach "KENNZ" oder "KENNZEICHEN" (deckt "Kennz." und "KENNZ." perfekt ab)
+  // 2. Multi-Indizien-Detektor (Suche nach "Kennz." / "KENNZ." und Auslesen ab Zeile 5 mit Längen- & NW-Indizien)
   let rawData = [];
   let coordinateMapping = [];
   
@@ -331,10 +311,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       if (headerRowIndex !== -1) break;
     }
 
-    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback auf Zeile 4 (Index 3)
-    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback auf Spalte A
+    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback Zeile 4
+    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback Spalte A
 
-    // Setze den offiziellen Master-Katalog als festen Sticky Header (Zeile 0 in der UI)
+    // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
     let headerCoords = [];
     for (let c = 0; c < 18; c++) {
@@ -343,9 +323,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     coordinateMapping.push(headerCoords);
 
     let autoIncrementId = 1;
-    const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => normalizeText(t));
 
-    // Exakter Start strikt ab Zeile 5 (headerRowIndex + 1) bis zum Ende
+    // Scan beginnt strikt ab Zeile 5 (headerRowIndex + 1)
     const dataStartIndex = headerRowIndex + 1;
 
     for (let r = dataStartIndex; r < targetRows.length; r++) {
@@ -359,23 +338,31 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // Prüfe auf echte Daten (Schlauchtyp oder Nennweite)
-      const schlauchRaw = String(extractedSlice[1] || "").trim();
-      const schlauchNorm = normalizeText(schlauchRaw);
-      const nwVal = String(extractedSlice[2] || "").trim();
-      const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
-      const isDirectTypeMatch = (schlauchNorm !== "" && normalizedValidTypes.includes(schlauchNorm));
-
-      if (!isDirectTypeMatch && !hasValidNW) {
-        const firstColText = normalizeText(extractedSlice[0]);
-        if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG")) {
-          break; // Footer erreicht
-        }
-        continue;
+      // Prüfe auf Footer-Ende (Unterschriften / Ersteller / Klassifizierung)
+      const firstColText = normalizeText(extractedSlice[0]);
+      const secondColText = normalizeText(extractedSlice[1]);
+      if (firstColText.includes("ERSTELLER") || firstColText.includes("BEARBEITER") || firstColText.includes("KLASSIFIZIERUNG") || firstColText.includes("DOKUMENTATION")) {
+        break; // Footer erreicht
       }
 
-      // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
+      // MULTI-INDIZIEN-CHECK (Schlauch-Detektor):
+      // Indiz 1: Kennzeichnung in Spalte A vorhanden?
       const originalKennz = String(extractedSlice[0] || "").trim();
+      
+      // Indiz 2: Nennweite (NW) in Spalte C (Index 2) ist eine valide Zahl?
+      const nwVal = String(extractedSlice[2] || "").trim();
+      const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
+
+      // Indiz 3 (Das Hauptindiz): Länge in Spalte F (Index 5) ist eine Zahl > 0?
+      const laengeVal = String(extractedSlice[5] || "").trim();
+      const hasValidLength = laengeVal !== "" && !isNaN(Number(laengeVal)) && Number(laengeVal) > 0;
+
+      // Wenn mindestens Länge > 0 ODER (Kennzeichnung + Nennweite) vorliegt, ist es ein valider Schlauch!
+      if (!hasValidLength && !(originalKennz !== "" && hasValidNW)) {
+        continue; // Leerzeile oder ungültiger Zwischeneintrag -> Überspringen
+      }
+
+      // Kennzeichnung übernehmen oder Auto-Increment
       if (originalKennz === "") {
         extractedSlice[0] = String(autoIncrementId++);
       } else {
@@ -394,7 +381,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 4. Rendern auf die Bühne mit Sticky Header
+  // 3. Rendern auf die Bühne mit maximaler Bildschirmhöhe (ohne Vorspann)
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -407,7 +394,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-230px)] sm:h-[calc(100vh-180px)] bg-white shadow-none w-full relative';
+  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-140px)] bg-white shadow-none w-full relative';
 
   const table = document.createElement('table');
   table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700';
