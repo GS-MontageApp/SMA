@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: parser.js (Schlauchmanagement-App v0.1.25)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.26)
  * ============================================================================
  * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
- * den Namen aus der direkt rechts daneben liegenden Zelle.
+ * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
  */
 
 window.ExcelParser = {
@@ -33,7 +33,6 @@ window.ExcelParser = {
       const workbook = XLSX.read(data, { type: 'array' });
       
       let foundCustomer = null;
-      let foundPlant = null;
       let rawRows = [];
 
       workbook.SheetNames.forEach(sheetName => {
@@ -44,7 +43,7 @@ window.ExcelParser = {
           rawRows = jsonSheet;
         }
 
-        // Exakte Suche nach dem Wort "Kunde" (Großes K, exakter String-Vergleich ohne unscharfe Suffixe)
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
         jsonSheet.forEach(row => {
           row.forEach((cellVal, colIdx) => {
             if (cellVal !== undefined && cellVal !== null) {
@@ -53,12 +52,6 @@ window.ExcelParser = {
               if (cellStr === "Kunde") {
                 if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
                   foundCustomer = String(row[colIdx + 1]).trim();
-                }
-              }
-
-              if (cellStr === "Anlage" || cellStr === "Anlagenbezeichnung") {
-                if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
-                  foundPlant = String(row[colIdx + 1]).trim();
                 }
               }
             }
@@ -100,10 +93,9 @@ window.ExcelParser = {
         filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
-      const finalClientName = foundPlant ? `${foundCustomer} (${foundPlant})` : foundCustomer;
-
+      // Der Kundenname wird nun strikt pur (ohne angehängte Anlage) übernommen
       return {
-        client: finalClientName,
+        client: foundCustomer,
         filename: fileName,
         rawData: filteredRows
       };
