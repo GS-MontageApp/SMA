@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.34)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.35)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  * Die grafische Ansicht auf der Bühne filtert exklusiv auf "Tabelle1".
@@ -209,7 +209,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     if (tab1Key) {
       targetRows = fileObj.sheets[tab1Key];
     } else {
-      // Falls kein Tabelle1 existiert, nimm das erste Blatt, aber überspringe explizit "Auswahlseite" wenn möglich
       const nonChoiceKey = sheetKeys.find(k => k.toLowerCase() !== 'auswahlseite' && k.toLowerCase() !== 'auswahl');
       targetRows = nonChoiceKey ? fileObj.sheets[nonChoiceKey] : fileObj.sheets[sheetKeys[0]];
     }
