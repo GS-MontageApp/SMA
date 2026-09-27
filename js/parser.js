@@ -2,8 +2,8 @@
  * ============================================================================
  * MODUL: parser.js (Schlauchmanagement-App v0.1.27)
  * ============================================================================
- * Sucht strikt nach dem exakten Arbeitsblatt "Tabelle1" (ohne Leerzeichen),
- * ignoriert alle anderen Blätter und extrahiert den Kundennamen pur.
+ * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
+ * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
  */
 
 window.ExcelParser = {
@@ -32,36 +32,30 @@ window.ExcelParser = {
       const data = new Uint8Array(arrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       
-      const targetSheetName = "Tabelle1";
-
-      // Strenge Validierung: Prüfen, ob "Tabelle1" im Workbook existiert
-      if (!workbook.SheetNames || !workbook.SheetNames.includes(targetSheetName)) {
-        throw new Error(
-          `Sicherheits-Abbruch: Das obligatorische Arbeitsblatt '${targetSheetName}' ` +
-          `(exakter Name ohne Leerzeichen) wurde in der Datei nicht gefunden. ` +
-          `Vorhandene Blätter: [${workbook.SheetNames.join(", ")}].`
-        );
-      }
-
-      // Exklusives Einlesen nur von "Tabelle1"
-      const sheet = workbook.Sheets[targetSheetName];
-      const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      
       let foundCustomer = null;
-      let rawRows = jsonSheet.length > 0 ? jsonSheet : [];
+      let rawRows = [];
 
-      // Exakte Suche nach dem Wort "Kunde" (Großes K) in Tabelle1 -> Wert in der Zelle rechts daneben
-      jsonSheet.forEach(row => {
-        row.forEach((cellVal, colIdx) => {
-          if (cellVal !== undefined && cellVal !== null) {
-            const cellStr = String(cellVal).trim();
-            
-            if (cellStr === "Kunde") {
-              if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
-                foundCustomer = String(row[colIdx + 1]).trim();
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        
+        if (jsonSheet.length > 0 && rawRows.length === 0) {
+          rawRows = jsonSheet;
+        }
+
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
+        jsonSheet.forEach(row => {
+          row.forEach((cellVal, colIdx) => {
+            if (cellVal !== undefined && cellVal !== null) {
+              const cellStr = String(cellVal).trim();
+              
+              if (cellStr === "Kunde") {
+                if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                  foundCustomer = String(row[colIdx + 1]).trim();
+                }
               }
             }
-          }
+          });
         });
       });
 
@@ -70,7 +64,7 @@ window.ExcelParser = {
         foundCustomer = fileName.replace(/\.[^/.]+$/, "");
       }
 
-      // Filterung & Strukturierung der Tabellenzeilen aus Tabelle1
+      // Filterung & Strukturierung der Tabellenzeilen
       let filteredRows = [];
       let headerFound = false;
 
@@ -96,7 +90,7 @@ window.ExcelParser = {
       });
 
       if (filteredRows.length === 0) {
-        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Das Arbeitsblatt 'Tabelle1' enthält keine lesbaren Daten."]];
+        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
       }
 
       return {
@@ -107,7 +101,7 @@ window.ExcelParser = {
 
     } catch (err) {
       console.error("Parser-Fehler:", err);
-      throw new Error(err.message || "Fehler beim Einlesen der Excel-Struktur von 'Tabelle1'.");
+      throw new Error("Fehler beim Einlesen der Excel-Struktur. Bitte prüfen Sie das Dateiformat.");
     }
   }
 };
