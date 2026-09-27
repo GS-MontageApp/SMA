@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.35)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.36)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Die grafische Ansicht auf der Bühne filtert exklusiv auf "Tabelle1".
+ * Die grafische Ansicht auf der Bühne filtert exklusiv auf "Tabelle1" (Auswahlseite wird ignoriert).
  */
 
 window.currentActiveCustomer = null;
@@ -201,16 +201,26 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // EXKLUSIVE UI-FILTERUNG: Nur Tabelle1 wird für die grafische Ansicht herangezogen
+  // EXKLUSIVE UI-FILTERUNG: Suche gezielt nach Tabelle1, ignoriere Auswahlseite komplett
   let targetRows = null;
   if (fileObj.sheets) {
     const sheetKeys = Object.keys(fileObj.sheets);
-    const tab1Key = sheetKeys.find(k => k.toLowerCase() === 'tabelle1' || k.toLowerCase() === 'tabelle 1');
+    // 1. Priorität: Exakter Treffer auf "Tabelle1" oder "Tabelle 1"
+    let tab1Key = sheetKeys.find(k => k.toLowerCase() === 'tabelle1' || k.toLowerCase() === 'tabelle 1');
+    
     if (tab1Key) {
       targetRows = fileObj.sheets[tab1Key];
     } else {
-      const nonChoiceKey = sheetKeys.find(k => k.toLowerCase() !== 'auswahlseite' && k.toLowerCase() !== 'auswahl');
-      targetRows = nonChoiceKey ? fileObj.sheets[nonChoiceKey] : fileObj.sheets[sheetKeys[0]];
+      // 2. Fallback: Nimm das erste Blatt, das NICHT "auswahlseite" oder "auswahl" heißt
+      const validKeys = sheetKeys.filter(k => {
+        const lower = k.toLowerCase();
+        return !lower.includes('auswahl') && !lower.includes('choice');
+      });
+      if (validKeys.length > 0) {
+        targetRows = fileObj.sheets[validKeys[0]];
+      } else {
+        targetRows = fileObj.sheets[sheetKeys[0]];
+      }
     }
   } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
