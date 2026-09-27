@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.31)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.33)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Beim Öffnen auf der Bühne wird strikt und ausschließlich 
- * nach dem Tabellenblatt mit dem exakten Namen "Tabelle1" gefiltert. 
- * Jegliche Auswahlseiten oder Menüs werden komplett ignoriert.
+ * EXKLUSIVE ÄNDERUNG: Beim Rendern der Tabelle auf der Bühne wird jede Zeile strikt 
+ * nach 18 Spalten (entspricht Spalte A bis R) abgeschnitten, um unsichtbare 
+ * Hilfsspalten und Auswahl-Listen zu ignorieren.
  */
 
 window.currentActiveCustomer = null;
@@ -203,70 +203,90 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // ============================================================================
-  // STRICT "TABELLE1" FILTER-GATE: 
-  // Lädt starr und ausschließlich "Tabelle1" und blendet Auswahlseiten konsequent aus.
-  // ============================================================================
+  // 1. Blatt-Erkennung (Suche nach der echten Tabelle, am besten "Tabelle1" oder anhand der Köpfe)
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
-    
-    // Exakter Match auf "Tabelle1" (Groß-/Kleinschreibung tolerant, bevorzugt exakt)
-    let validKey = keys.find(k => k === 'Tabelle1');
-    if (!validKey) {
-      validKey = keys.find(k => k.toLowerCase() === 'tabelle1' || k.toLowerCase() === 'tabelle 1');
-    }
-    
-    // Falls "Tabelle1" absolut nicht existiert, nimm das erste Blatt, das KEINE Auswahl- oder Menüseite ist
-    if (!validKey) {
-      validKey = keys.find(k => {
-        const lower = k.toLowerCase();
-        return !lower.includes('auswahl') && !lower.includes('choice') && !lower.includes('menu');
-      });
+    let foundDataSheet = false;
+
+    // Wir scannen alle Blätter durch
+    for (let i = 0; i < keys.length; i++) {
+      const sheetName = keys[i];
+      const rows = fileObj.sheets[sheetName];
+      if (!Array.isArray(rows)) continue;
+
+      const maxRowsToScan = Math.min(rows.length, 20);
+      let hasRelevantHeaders = false;
+
+      for (let r = 0; r < maxRowsToScan; r++) {
+        const row = rows[r];
+        if (!Array.isArray(row)) continue;
+        
+        const rowString = row.join(' ').toLowerCase();
+        if (rowString.includes('schlauch-id') || 
+            rowString.includes('typ') || 
+            rowString.includes('länge') || 
+            rowString.includes('druck') || 
+            rowString.includes('kunde') ||
+            rowString.includes('kennz')) {
+          hasRelevantHeaders = true;
+          break;
+        }
+      }
+
+      if (hasRelevantHeaders || sheetName.toLowerCase() === 'tabelle1' || sheetName.toLowerCase() === 'tabelle 1') {
+        targetRows = rows;
+        foundDataSheet = true;
+        break;
+      }
     }
 
-    // Letzter Fallback
-    if (!validKey && keys.length > 0) {
-      validKey = keys[0];
-    }
-
-    if (validKey) {
-      targetRows = fileObj.sheets[validKey];
+    if (!foundDataSheet) {
+      let fallbackKey = keys.find(k => !k.toLowerCase().includes('auswahl') && !k.toLowerCase().includes('menu'));
+      if (!fallbackKey && keys.length > 0) fallbackKey = keys[0];
+      if (fallbackKey) targetRows = fileObj.sheets[fallbackKey];
     }
   } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
 
+  // 2. Tabellen-Aufbau und HARTER CUT nach Spalte R (18 Spalten)
   let rawData = [];
   let headerFound = false;
+  
   if (targetRows && Array.isArray(targetRows)) {
     targetRows.forEach(row => {
-      const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+      // WICHTIG: Schneide die Zeile nach dem 18. Feld hart ab. 
+      // Alles ab Index 18 (Spalte S) wird komplett entfernt und ignoriert.
+      let trimmedRow = row.slice(0, 18);
+      
+      const hasContent = trimmedRow.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
       if (!hasContent) return;
 
-      const rowString = row.join(' ').toLowerCase();
+      const rowString = trimmedRow.join(' ').toLowerCase();
       if (rowString.includes('kunde') || rowString.includes('anlage')) {
-        rawData.push(row);
+        rawData.push(trimmedRow);
         return;
       }
 
       if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
         headerFound = true;
-        rawData.push(row);
+        rawData.push(trimmedRow);
         return;
       }
 
       if (headerFound) {
-        rawData.push(row);
+        rawData.push(trimmedRow);
       }
     });
     if (rawData.length === 0) {
-      rawData = targetRows;
+      rawData = targetRows.map(r => r.slice(0, 18));
     }
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
 
+  // 3. Rendern auf die Bühne
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
