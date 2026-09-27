@@ -3,212 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schlauchmanagement - Parser Test (Tabelle1)</title>
-    <!-- SheetJS (xlsx) Bibliothek für den Browser-Excel-Import -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f5f7;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        h1 {
-            font-size: 22px;
-            margin-top: 0;
-            color: #111;
-            border-bottom: 2px solid #e1e4e8;
-            padding-bottom: 10px;
-        }
-        .upload-box {
-            border: 2px dashed #cbd5e1;
-            padding: 30px;
-            text-align: center;
-            border-radius: 6px;
-            background: #fafafa;
-            margin-bottom: 20px;
-            cursor: pointer;
-        }
-        .upload-box:hover {
-            background: #f1f5f9;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .btn {
-            background: #2563eb;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .btn:hover {
-            background: #1d4ed8;
-        }
-        .meta-info {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        .meta-info p {
-            margin: 5px 0;
-            font-size: 14px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            margin-top: 15px;
-        }
-        th, td {
-            border: 1px solid #cbd5e1;
-            padding: 8px 10px;
-            text-align: left;
-        }
-        th {
-            background-color: #f1f5f9;
-            font-weight: 600;
-        }
-        .error {
-            color: #dc2626;
-            background: #fee2e2;
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            display: none;
-        }
-        .table-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #cbd5e1;
-        }
-    </style>
+    <title>Schlauchmanagement PWA</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <div id="app">
+        <!-- Header / Navigation -->
+        <header class="app-header">
+            <h1>Schlauchmanagement</h1>
+            <div id="user-display" class="user-badge">Nicht angemeldet</div>
+        </header>
 
-<div class="container">
-    <h1>Parser-Test: Tabelle1 (Schlauchmanagement)</h1>
-    <p>Wähle eine Excel-Datei (.xlsx / .xls) aus, um die Metadaten und die nummerierten Zeilen aus <strong>Tabelle1</strong> auszulesen.</p>
+        <!-- Main Content Area -->
+        <main class="app-container">
+            <section id="auth-section" class="card">
+                <h2>Anmeldung</h2>
+                <p>Bitte wählen Sie Ihren Benutzer aus:</p>
+                <select id="user-select">
+                    <-- Dynamisch gefüllt aus users.json -->
+                </select>
+                <button id="login-btn" class="btn primary">Anmelden</button>
+            </section>
 
-    <div id="errorBox" class="error"></div>
-
-    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
-        <p><strong>Excel-Datei hierher ziehen oder klicken zum Auswählen</strong></p>
-        <button class="btn">Datei auswählen</button>
-        <input type="file" id="fileInput" accept=".xlsx, .xls">
+            <section id="dashboard-section" class="card" style="display: none;">
+                <h2>Zentrale Dateipool & Dokumenten-Zentrale</h2>
+                <div class="upload-container">
+                    <input type="file" id="excel-upload" accept=".xlsx, .xls">
+                    <label for="excel-upload" class="btn">Excel-Datei importieren</label>
+                </div>
+                <div id="file-pool-list" class="file-pool">
+                    <!-- Liste der importierten Dateien -->
+                </div>
+            </section>
+        </main>
     </div>
 
-    <div id="metaBox" class="meta-info">
-        <h3>Extrahierte Metadaten</h3>
-        <p><strong>Kunde:</strong> <span id="resKunde">-</span></p>
-        <p><strong>Anlage:</strong> <span id="resAnlage">-</span></p>
-        <p><strong>Gefundene Datensätze (mit Kennz.):</strong> <span id="resCount">0</span></p>
-    </div>
-
-    <div id="resultSection" style="display:none;">
-        <h3>Geparste Datensätze</h3>
-        <div class="table-container">
-            <table id="resultTable">
-                <thead>
-                    <tr>
-                        <th>Kennz.</th>
-                        <th>Schlauch</th>
-                        <th>NW</th>
-                        <th>Anschluss A</th>
-                        <th>Anschluss B</th>
-                        <th>Länge</th>
-                        <th>Einbauort</th>
-                    </tr>
-                </thead>
-                <tbody id="resultBody">
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- Parser-Skript einbinden -->
-<script src="parser.js"></script>
-<script>
-    document.getElementById('fileInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Sicherheits-Limit: max 600 KB
-        if (file.size > 600 * 1024) {
-            showError("Fehler: Die Datei ist größer als 600 KB. Aus Performance-Gründen auf mobilen Geräten ist die Dateigröße limitiert.");
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                hideError();
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-
-                // Parser aufrufen
-                const result = HoseExcelParser.parseTabelle1(workbook);
-
-                // UI aktualisieren
-                document.getElementById('resKunde').textContent = result.kunde || "(Nicht gefunden)";
-                document.getElementById('resAnlage').textContent = result.anlage || "(Nicht gefunden)";
-                document.getElementById('resCount').textContent = result.recordsCount;
-                document.getElementById('metaBox').style.display = 'block';
-
-                // Tabelle befüllen
-                const tbody = document.getElementById('resultBody');
-                tbody.innerHTML = '';
-                
-                result.records.forEach(rec => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${rec.kennz}</td>
-                        <td>${rec.schlauch}</td>
-                        <td>${rec.nw}</td>
-                        <td>${rec.anschlussA}</td>
-                        <td>${rec.anschlussB}</td>
-                        <td>${rec.laenge}</td>
-                        <td>${rec.einbauort}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
-                document.getElementById('resultSection').style.display = 'block';
-
-            } catch (err) {
-                showError(err.message);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
-    function showError(msg) {
-        const box = document.getElementById('errorBox');
-        box.textContent = msg;
-        box.style.display = 'block';
-        document.getElementById('metaBox').style.display = 'none';
-        document.getElementById('resultSection').style.display = 'none';
-    }
-
-    function hideError() {
-        document.getElementById('errorBox').style.display = 'none';
-    }
-</script>
-
+    <!-- Skripte -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/parser.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui-pool.js"></script>
+    <script src="js/app-core.js"></script>
 </body>
 </html>
