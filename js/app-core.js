@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.35)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.36)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Systematisches Scannen nach "KENNZ." (mit zwei N) 
- * zur exakten Bestimmung von Spalte 1, anschließendes Einlesen der Spalten 1 bis 18 
- * sowie Darstellung mit Sticky Header und schickem Excel-Design.
+ * EXKLUSIVE ÄNDERUNG: Systematisches Auffinden von "KENNZ." (mit zwei N), 
+ * exaktes Extrahieren der 18 Spalten (A bis R) mit Erfassung der Original-Koordinaten 
+ * für den späteren Export sowie stabiler Sticky Header.
  */
 
 window.currentActiveCustomer = null;
@@ -39,9 +39,9 @@ window.AppData = {
           timestamp: nowStr, 
           sheets: { 
             "Tabelle1": [
-              ["Info", "Nicht relevant", "Noch mehr Müll"],
-              ["KENNZ.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung", "Auswahl-Müll 1", "Auswahl-Müll 2"],
-              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard", "X", "Y"]
+              ["Info", "Nicht relevant"],
+              ["KENNZ.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"]
             ]
           } 
         }
@@ -207,7 +207,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Blatt-Erkennung
+  // 1. Blatt-Erkennung über "KENNZ."
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
@@ -218,7 +218,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const rows = fileObj.sheets[sheetName];
       if (!Array.isArray(rows)) continue;
 
-      // Scanne nach "KENNZ." (mit zwei N) in den ersten Zeilen
       let hasKennz = false;
       for (let r = 0; r < Math.min(rows.length, 25); r++) {
         if (!Array.isArray(rows[r])) continue;
@@ -245,14 +244,14 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Intelligente Extraktion ab "KENNZ." bis Spalte 18 (Spalte R)
+  // 2. Extraktion ab "KENNZ." (Spalte 1 bis 18) mit Koordinaten-Gedächtnis für späteren Export
   let rawData = [];
+  let coordinateMapping = []; // Speichert Original-Koordinaten für den Export-Manager
   
   if (targetRows && Array.isArray(targetRows)) {
     let headerRowIndex = -1;
     let kennzColIndex = -1;
 
-    // Suche exakt nach der Zeile & Spalte, in der "KENNZ." steht
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -268,34 +267,38 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     }
 
     if (headerRowIndex !== -1 && kennzColIndex !== -1) {
-      // Ab der gefundenen Kopfzeile genau 18 Spalten nach rechts einlesen
       for (let r = headerRowIndex; r < targetRows.length; r++) {
         const row = targetRows[r];
         if (!Array.isArray(row)) continue;
 
-        // Extrahiere exakt 18 Spalten ab der gefundenen Startspalte
         let extractedSlice = [];
+        let rowCoords = [];
         for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
           extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+          rowCoords.push({ originalRow: r, originalCol: c });
         }
 
         const hasContent = extractedSlice.some(cell => String(cell).trim() !== '');
-        if (!hasContent && r > headerRowIndex) continue; // Leere Zeilen überspringen
+        if (!hasContent && r > headerRowIndex) continue;
 
         rawData.push(extractedSlice);
+        coordinateMapping.push(rowCoords);
       }
     } else {
-      // Fallback, falls "KENNZ." absolut nicht gefunden wird
-      targetRows.forEach(row => {
+      targetRows.forEach((row, rIdx) => {
         let trimmed = row.slice(0, 18);
         if (trimmed.some(cell => String(cell).trim() !== '')) {
           rawData.push(trimmed);
+          coordinateMapping.push(trimmed.map((_, cIdx) => ({ originalRow: rIdx, originalCol: cIdx })));
         }
       });
     }
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
+
+  // Im globalen Fenster für den späteren Export / Bearbeitung hinterlegen
+  window.currentActiveCoordinateMapping = coordinateMapping;
 
   // 3. Rendern auf die Bühne mit Sticky Header
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
