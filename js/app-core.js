@@ -1,12 +1,13 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.49)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.50)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.49: 
- * - Der textbasierte Stopp-Anker ("Ersteller") wurde ersatzlos entfernt. 
- * - Der Parser läuft nun unaufhaltsam bis zum Ende des Excel-Blatts durch,
- *   sodass auch 500+ Schläuche fehlerfrei und lückenlos eingelesen werden.
+ * ÄNDERUNG in v0.1.50: 
+ * - Reiner Typ-basierter Suchlauf von oben nach unten.
+ * - Sobald in einer Zeile ein Zellenwert exakt auf einen gültigen Schlauchtyp 
+ *   aus den Stammdaten (VALID_SCHLAUCH_TYPES) trifft, ist der Startpunkt gefunden.
+ * - Anschließendes lückenloses Durchlaufen bis zum Dateiende.
  */
 
 window.currentActiveCustomer = null;
@@ -71,8 +72,8 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Echter Spaltenkopf mit "Kennz."
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], // Zeile 4: Spaltenkopf
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], // Zeile 5: Schlauch 1 (Typ "2SN" matched Stammdaten)
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  // Zeile 6: Schlauch 2
             ]
           } 
@@ -279,14 +280,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Präzise Suche nach exakt "Kennz." und Durchlauf bis zum Dateiende ohne Stopp-Anker
+  // 2. TYP-BASIERTER TOP-TO-BOTTOM SUCHLAUF & DURCHLAUF BIS ZUM ENDE
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    let headerRowIndex = -1;
-    let kennzColIndex = -1;
+    let headerRowIndex = 3; // Standard-Fallback für Spaltenkopf (Zeile 4)
+    let kennzColIndex = 0;
 
+    // Suche Spaltenkopf mit "Kennz." zur Spaltenausrichtung
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -298,11 +300,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
           break;
         }
       }
-      if (headerRowIndex !== -1) break;
+      if (headerRowIndex !== 3) break;
     }
-
-    if (headerRowIndex === -1) headerRowIndex = 3; // Fallback Zeile 4
-    if (kennzColIndex === -1) kennzColIndex = 0;   // Fallback Spalte A
 
     // Setze offiziellen Master-Katalog als Sticky Header (Zeile 0 in der UI)
     rawData.push(window.MASTER_CATALOG_HEADERS);
@@ -313,11 +312,29 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     coordinateMapping.push(headerCoords);
 
     let autoIncrementId = 1;
+    const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Scan beginnt strikt ab Zeile unterhalb von "Kennz." (headerRowIndex + 1) bis zum absoluten Ende
-    const dataStartIndex = headerRowIndex + 1;
+    // Finde die Startzeile von oben nach unten: Suche nach dem ersten Schlauchtyp aus den Stammdaten
+    let startDataRow = headerRowIndex + 1;
+    for (let r = 0; r < targetRows.length; r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+      let foundTypeMatch = false;
+      for (let c = 0; c < row.length; c++) {
+        const cellStr = String(row[c] || "").toUpperCase().trim();
+        if (normalizedValidTypes.includes(cellStr)) {
+          foundTypeMatch = true;
+          break;
+        }
+      }
+      if (foundTypeMatch) {
+        startDataRow = r; // Wir haben den ersten echten Schlauchtyp gefunden!
+        break;
+      }
+    }
 
-    for (let r = dataStartIndex; r < targetRows.length; r++) {
+    // Durchlaufe alle Zeilen ab dem gefundenen Start bis zum absoluten Dateiende
+    for (let r = startDataRow; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
@@ -328,23 +345,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // MULTI-INDIZIEN-SCHLAUCHDETEKTOR (ohne Text-Stopp, läuft bis zum Ende):
+      // Prüfe, ob die Zeile komplett leer ist
+      const hasAnyValue = extractedSlice.some(val => String(val).trim() !== "");
+      if (!hasAnyValue) continue;
+
+      // Kennzeichnung (Spalte 1 / Index 0): Original übernehmen oder Auto-Increment
       const originalKennz = String(extractedSlice[0] || "").trim();
-      
-      // Nennweite (Spalte 3 / Index 2)
-      const nwVal = String(extractedSlice[2] || "").trim();
-      const hasValidNW = nwVal !== "" && !isNaN(Number(nwVal));
-
-      // Länge (Spalte 6 / Index 5) - Hauptindikator > 0
-      const laengeVal = String(extractedSlice[5] || "").trim();
-      const hasValidLength = laengeVal !== "" && !isNaN(Number(laengeVal)) && Number(laengeVal) > 0;
-
-      // Überspringe reine Leerzeilen (wenn keine Kennz., keine NW und keine Länge existiert)
-      if (originalKennz === "" && !hasValidNW && !hasValidLength) {
-        continue; 
-      }
-
-      // Kennzeichnung übernehmen oder Auto-Increment
       if (originalKennz === "") {
         extractedSlice[0] = String(autoIncrementId++);
       } else {
