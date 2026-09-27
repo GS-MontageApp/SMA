@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.7 (Modulare Architektur) === -->
+  <!-- === SMA v0.1.8 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.7</title>
+  <title id="page-title">Schlauchmanagement v0.1.8</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.7">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.8">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -46,6 +46,9 @@
 
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = titleText;
+
+      // Footer-Status aktualisieren (nur auf der Bühne sichtbar oder leer in anderen Ansichten)
+      window.updateFooterActiveFile(viewId === 'buehne' ? window.currentActiveFileName : null);
 
       if (viewId === 'dateipool') {
         window.renderDateipool();
@@ -105,6 +108,21 @@
     };
 
     let currentActiveCustomer = null;
+    let currentActiveFileName = null;
+
+    // Footer-Kachel aktualisieren (zeigt nur den reinen Dateinamen)
+    window.updateFooterActiveFile = function(fileName) {
+      const container = document.getElementById('file_tabs_container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (fileName) {
+        const badge = document.createElement('div');
+        badge.className = 'bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-full truncate';
+        badge.innerHTML = `<span class="opacity-75 text-[10px] uppercase tracking-wider">Aktiv:</span> <span class="truncate">${fileName}</span>`;
+        container.appendChild(badge);
+      }
+    };
 
     // Dateipool Kacheln rendern
     window.renderDateipool = function() {
@@ -154,10 +172,10 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = customerName;
 
+      window.updateFooterActiveFile(null);
       window.renderCustomerFilesList();
     };
 
-    // Kunden-Dateiliste rendern (mit Lösch-Button unten rechts)
     window.renderCustomerFilesList = function() {
       const listContainer = document.getElementById('customer_files_list');
       if (!listContainer || !currentActiveCustomer) return;
@@ -199,7 +217,7 @@
       });
     };
 
-    // Aktive Bearbeitungs-Bühne: Rendert die echten Tabellendaten mit Sticky Header (Read-Only)
+    // Aktive Bearbeitungs-Bühne: Edge-to-Edge Ansicht ohne äußere Ränder
     window.openFileOnStage = function(clientName, fileName) {
       const clients = window.AppData.getClients();
       const fileList = clients[clientName] || [];
@@ -210,6 +228,7 @@
         return;
       }
 
+      currentActiveFileName = fileName;
       const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
 
       document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
@@ -219,12 +238,16 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = `${clientName} / ${fileName}`;
 
+      // Footer mit Dateinamen aktualisieren
+      window.updateFooterActiveFile(fileName);
+
       const container = document.getElementById('buehne_table_container');
       if (!container) return;
       container.innerHTML = '';
 
+      // Edge-to-Edge Wrapper ohne störende Abstände
       const wrapper = document.createElement('div');
-      wrapper.className = 'overflow-x-auto max-h-[65vh] rounded-xl border border-slate-200 bg-white shadow-xs';
+      wrapper.className = 'overflow-x-auto h-[calc(100vh-170px)] bg-white shadow-none';
 
       const table = document.createElement('table');
       table.className = 'w-full text-left border-collapse text-xs text-slate-700';
@@ -237,7 +260,7 @@
 
       rawData.forEach((row, rowIndex) => {
         const tr = document.createElement('tr');
-        tr.className = rowIndex === 0 ? 'bg-slate-50' : 'hover:bg-slate-50/80 transition-colors';
+        tr.className = rowIndex === 0 ? 'bg-slate-100' : 'hover:bg-slate-50/80 transition-colors';
 
         row.forEach((cellVal) => {
           const cell = rowIndex === 0 ? document.createElement('th') : document.createElement('td');
@@ -259,7 +282,6 @@
       container.appendChild(wrapper);
     };
 
-    // Sicherheitsabfragen
     window.confirmDeleteFile = function(clientName, fileName) {
       window.showSystemModal(
         'Datei löschen',
@@ -284,7 +306,6 @@
       );
     };
 
-    // System-Overlay Modal
     window.showSystemModal = function(title, message, onConfirm, showCancel = true) {
       const modal = document.getElementById('system_generic_modal');
       const titleEl = document.getElementById('system_modal_title');
@@ -320,13 +341,11 @@
 
     let pendingImportData = null;
 
-    // Excel-Upload mit Einbindung des parsers.js Moduls
     window.handleExcelImport = function(event) {
       const file = event.target.files[0];
       if (!file) return;
 
       try {
-        // Strenge Vorab-Validierung durch parser.js
         window.ExcelParser.validateFile(file);
       } catch (err) {
         window.showSystemModal('Validierungsfehler', err.message, null, false);
@@ -380,8 +399,8 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.7"></script>
-  <script src="js/auth.js?v=v0.1.7"></script>
+  <script src="js/parser.js?v=v0.1.8"></script>
+  <script src="js/auth.js?v=v0.1.8"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -430,19 +449,17 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Read-Only Tabelle mit echten Daten & Sticky Header) -->
-    <div id="view-buehne" class="app-view hidden space-y-4 flex-1">
-      <section class="bg-white p-5 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200">
-        <div class="flex items-center justify-between border-b pb-1.5">
-          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bearbeitungs-Bühne (Read-Only)</span>
-          <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
-        </div>
-        <p class="text-xs text-slate-500">Echte Daten aus der eingelesenen Excel-Datei. Der Tabellenkopf scrollt automatisch mit.</p>
-        
-        <div id="buehne_table_container" class="pt-2">
-          <!-- Dynamisch -->
-        </div>
-      </section>
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus) -->
+    <div id="view-buehne" class="app-view hidden flex-1 flex flex-col -mx-3 -mt-3">
+      <!-- Toolbar für Zurück-Navigation direkt über der Tabelle -->
+      <div class="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between shrink-0">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bearbeitungs-Bühne (Read-Only)</span>
+        <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
+      </div>
+      <!-- Tabellencontainer ohne Außenränder für maximale Ausnutzung -->
+      <div id="buehne_table_container" class="flex-1 bg-white">
+        <!-- Dynamisch -->
+      </div>
     </div>
 
     <!-- MODUL 3: STAMMDATEN -->
@@ -458,10 +475,10 @@
 
   </main>
 
-  <!-- Footer Navigation (Komplett bereinigt / leer) -->
-  <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-2 py-1.5 shrink-0 transition-colors">
-    <div id="file_tabs_container" class="max-w-3xl mx-auto flex gap-2 overflow-x-auto items-center">
-      <!-- Leer -->
+  <!-- Footer Navigation mit aktiver Datei-Kachel -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
+    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center">
+      <!-- Wird dynamisch belegt wenn eine Datei aktiv ist -->
     </div>
   </footer>
 
@@ -491,7 +508,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.7</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.8</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
