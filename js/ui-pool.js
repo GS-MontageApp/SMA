@@ -1,88 +1,108 @@
 /**
  * ============================================================================
- * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.25)
+ * MODUL: parser.js (Schlauchmanagement-App v0.1.26)
  * ============================================================================
- * Kapselt die UI-Rendering-Routinen für den Dateipool und die Kunden-Dateiliste.
+ * Sucht strikt nach dem exakten Wort "Kunde" (mit großem K) und extrahiert
+ * den Kundennamen pur aus der rechten Nachbarzelle (ohne angehängten Anlagenamen).
  */
 
-window.UIPool = {
-  renderDateipool: function() {
-    const container = document.getElementById('dateipool_grid');
-    if (!container) return;
-    container.innerHTML = '';
-    const clients = window.AppData.getClients();
-
-    const customerKeys = Object.keys(clients);
-    if (customerKeys.length === 0) {
-      container.innerHTML = '<p class="text-xs text-slate-400 py-3 col-span-full text-center">Keine Kunden im Dateipool vorhanden.</p>';
-      return;
+window.ExcelParser = {
+  validateFile: function(file) {
+    if (!file) {
+      throw new Error("Keine Datei ausgewählt.");
+    }
+    const validExtensions = ['.xls', '.xlsx'];
+    const fileNameLower = file.name.toLowerCase();
+    const isValidExt = validExtensions.some(ext => fileNameLower.endsWith(ext));
+    
+    if (!isValidExt) {
+      throw new Error("Ungültiges Dateiformat. Bitte nur .xls oder .xlsx Dateien verwenden.");
     }
 
-    customerKeys.forEach(clientName => {
-      const fileList = clients[clientName] || [];
-      const fileCount = fileList.length;
-      const card = document.createElement('div');
-      card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between group';
-      
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'flex-1 cursor-pointer pr-2';
-      infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base truncate">${clientName}</h3><p class="text-xs text-slate-400 mt-0.5">${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'}</p>`;
-      infoDiv.onclick = () => window.openCustomerFiles(clientName);
-      card.appendChild(infoDiv);
+    const maxSize = 650 * 1024;
+    if (file.size > maxSize) {
+      throw new Error("Die Datei ist zu groß (> 650 KB). Zum Schutz mobiler Browser limitiert.");
+    }
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shrink-0 shadow-2xs';
-      deleteBtn.title = 'Kunden löschen';
-      deleteBtn.innerHTML = '🗑️';
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        window.confirmDeleteClient(clientName, fileCount);
-      };
-      card.appendChild(deleteBtn);
-
-      container.appendChild(card);
-    });
+    return true;
   },
 
-  renderCustomerFilesList: function(currentActiveCustomer) {
-    const listContainer = document.getElementById('customer_files_list');
-    if (!listContainer || !currentActiveCustomer) return;
-    listContainer.innerHTML = '';
-
-    const clients = window.AppData.getClients();
-    const files = clients[currentActiveCustomer] || [];
-
-    if (files.length === 0) {
-      listContainer.innerHTML = '<p class="text-xs text-slate-400 py-3 text-center">Keine Dateien vorhanden.</p>';
-      return;
-    }
-
-    files.forEach(fileObj => {
-      if (!fileObj) return;
-      const fileName = fileObj.name;
-      const timestamp = fileObj.timestamp || 'Unbekannt';
-
-      const card = document.createElement('div');
-      card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex flex-col justify-between gap-3 cursor-pointer relative';
+  parseFileBuffer: function(arrayBuffer, fileName) {
+    try {
+      const data = new Uint8Array(arrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
       
-      card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName, true);
+      let foundCustomer = null;
+      let rawRows = [];
 
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'flex-1 min-w-0 pr-12';
-      infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base break-all">${fileName}</h3><p class="text-xs text-slate-500 mt-1">Zuletzt lokal gespeichert: ${timestamp}</p>`;
-      card.appendChild(infoDiv);
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonSheet = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        
+        if (jsonSheet.length > 0 && rawRows.length === 0) {
+          rawRows = jsonSheet;
+        }
 
-      const delFileBtn = document.createElement('button');
-      delFileBtn.className = 'absolute bottom-3 right-3 p-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-sm shadow-2xs';
-      delFileBtn.title = 'Datei löschen';
-      delFileBtn.innerHTML = '🗑️';
-      delFileBtn.onclick = (e) => {
-        e.stopPropagation();
-        window.confirmDeleteFile(currentActiveCustomer, fileName);
+        // Exakte Suche nach dem Wort "Kunde" (Großes K) -> Wert in der Zelle rechts daneben ist der Kundenname
+        jsonSheet.forEach(row => {
+          row.forEach((cellVal, colIdx) => {
+            if (cellVal !== undefined && cellVal !== null) {
+              const cellStr = String(cellVal).trim();
+              
+              if (cellStr === "Kunde") {
+                if (row[colIdx + 1] !== undefined && row[colIdx + 1] !== null) {
+                  foundCustomer = String(row[colIdx + 1]).trim();
+                }
+              }
+            }
+          });
+        });
+      });
+
+      // Fallback für den Kundennamen, falls kein Label "Kunde" im Dokument gefunden wurde
+      if (!foundCustomer) {
+        foundCustomer = fileName.replace(/\.[^/.]+$/, "");
+      }
+
+      // Filterung & Strukturierung der Tabellenzeilen
+      let filteredRows = [];
+      let headerFound = false;
+
+      rawRows.forEach(row => {
+        const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+        if (!hasContent) return;
+
+        const rowString = row.join(' ').toLowerCase();
+        if (rowString.includes('kunde') || rowString.includes('anlage')) {
+          filteredRows.push(row);
+          return;
+        }
+
+        if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck'))) {
+          headerFound = true;
+          filteredRows.push(row);
+          return;
+        }
+
+        if (headerFound) {
+          filteredRows.push(row);
+        }
+      });
+
+      if (filteredRows.length === 0) {
+        filteredRows = rawRows.length > 0 ? rawRows : [["Info", "Die Excel-Tabelle enthält keine lesbaren Daten."]];
+      }
+
+      // Der Kundenname wird nun strikt pur (ohne angehängte Anlage) übernommen
+      return {
+        client: foundCustomer,
+        filename: fileName,
+        rawData: filteredRows
       };
-      card.appendChild(delFileBtn);
 
-      listContainer.appendChild(card);
-    });
+    } catch (err) {
+      console.error("Parser-Fehler:", err);
+      throw new Error("Fehler beim Einlesen der Excel-Struktur. Bitte prüfen Sie das Dateiformat.");
+    }
   }
 };
