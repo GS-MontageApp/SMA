@@ -1,10 +1,11 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.34)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.35)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * EXKLUSIVE ÄNDERUNG: Strikte Begrenzung auf Spalte 1 bis 18 (Spalte A bis R) 
- * gemäß Master-Katalog sowie ein robuster Sticky Header für die Tabelle auf der Bühne.
+ * EXKLUSIVE ÄNDERUNG: Systematisches Scannen nach "KENNZ." (mit zwei N) 
+ * zur exakten Bestimmung von Spalte 1, anschließendes Einlesen der Spalten 1 bis 18 
+ * sowie Darstellung mit Sticky Header und schickem Excel-Design.
  */
 
 window.currentActiveCustomer = null;
@@ -38,8 +39,9 @@ window.AppData = {
           timestamp: nowStr, 
           sheets: { 
             "Tabelle1": [
-              ["Kennz.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard"]
+              ["Info", "Nicht relevant", "Noch mehr Müll"],
+              ["KENNZ.", "Schlauch", "NW", "Anschluß A", "Anschluß B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung", "Auswahl-Müll 1", "Auswahl-Müll 2"],
+              ["1", "2SN", "12", "DKOL", "DKOL", "1500", "0", "0", "210", "Sep. 25", "1", "60", "Sep. 26", "OK", "Sep. 27", "MJ", "Pumpe 1", "Standard", "X", "Y"]
             ]
           } 
         }
@@ -205,7 +207,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Blatt-Erkennung (Suche nach der echten Tabelle)
+  // 1. Blatt-Erkennung
   let targetRows = null;
   if (fileObj.sheets) {
     const keys = Object.keys(fileObj.sheets);
@@ -216,25 +218,18 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const rows = fileObj.sheets[sheetName];
       if (!Array.isArray(rows)) continue;
 
-      const maxRowsToScan = Math.min(rows.length, 20);
-      let hasRelevantHeaders = false;
-
-      for (let r = 0; r < maxRowsToScan; r++) {
-        const row = rows[r];
-        if (!Array.isArray(row)) continue;
-        
-        const rowString = row.join(' ').toLowerCase();
-        if (rowString.includes('schlauch') || 
-            rowString.includes('kennz') || 
-            rowString.includes('nw') || 
-            rowString.includes('druck') || 
-            rowString.includes('länge')) {
-          hasRelevantHeaders = true;
+      // Scanne nach "KENNZ." (mit zwei N) in den ersten Zeilen
+      let hasKennz = false;
+      for (let r = 0; r < Math.min(rows.length, 25); r++) {
+        if (!Array.isArray(rows[r])) continue;
+        const rowStr = rows[r].join(' ').toUpperCase();
+        if (rowStr.includes('KENNZ.')) {
+          hasKennz = true;
           break;
         }
       }
 
-      if (hasRelevantHeaders || sheetName.toLowerCase() === 'tabelle1' || sheetName.toLowerCase() === 'tabelle 1') {
+      if (hasKennz || sheetName.toLowerCase() === 'tabelle1' || sheetName.toLowerCase() === 'tabelle 1') {
         targetRows = rows;
         foundDataSheet = true;
         break;
@@ -250,39 +245,59 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. Tabellen-Aufbau und HARTER CUT nach Spalte R (18 Spalten)
+  // 2. Intelligente Extraktion ab "KENNZ." bis Spalte 18 (Spalte R)
   let rawData = [];
-  let headerFound = false;
   
   if (targetRows && Array.isArray(targetRows)) {
-    targetRows.forEach(row => {
-      let trimmedRow = row.slice(0, 18);
-      
-      const hasContent = trimmedRow.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-      if (!hasContent) return;
+    let headerRowIndex = -1;
+    let kennzColIndex = -1;
 
-      const rowString = trimmedRow.join(' ').toLowerCase();
-      if (rowString.includes('kennz') || rowString.includes('schlauch')) {
-        if (!headerFound) {
-          headerFound = true;
-          rawData.push(trimmedRow);
+    // Suche exakt nach der Zeile & Spalte, in der "KENNZ." steht
+    for (let r = 0; r < targetRows.length; r++) {
+      const row = targetRows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const val = String(row[c] || '').trim().toUpperCase();
+        if (val === 'KENNZ.' || val === 'KENNZ') {
+          headerRowIndex = r;
+          kennzColIndex = c;
+          break;
         }
-        return;
       }
+      if (headerRowIndex !== -1) break;
+    }
 
-      if (headerFound) {
-        rawData.push(trimmedRow);
+    if (headerRowIndex !== -1 && kennzColIndex !== -1) {
+      // Ab der gefundenen Kopfzeile genau 18 Spalten nach rechts einlesen
+      for (let r = headerRowIndex; r < targetRows.length; r++) {
+        const row = targetRows[r];
+        if (!Array.isArray(row)) continue;
+
+        // Extrahiere exakt 18 Spalten ab der gefundenen Startspalte
+        let extractedSlice = [];
+        for (let c = kennzColIndex; c < kennzColIndex + 18; c++) {
+          extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+        }
+
+        const hasContent = extractedSlice.some(cell => String(cell).trim() !== '');
+        if (!hasContent && r > headerRowIndex) continue; // Leere Zeilen überspringen
+
+        rawData.push(extractedSlice);
       }
-    });
-
-    if (rawData.length === 0) {
-      rawData = targetRows.map(r => r.slice(0, 18));
+    } else {
+      // Fallback, falls "KENNZ." absolut nicht gefunden wird
+      targetRows.forEach(row => {
+        let trimmed = row.slice(0, 18);
+        if (trimmed.some(cell => String(cell).trim() !== '')) {
+          rawData.push(trimmed);
+        }
+      });
     }
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
   }
 
-  // 3. Rendern auf die Bühne mit robustem Sticky Header
+  // 3. Rendern auf die Bühne mit Sticky Header
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -301,7 +316,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700';
 
   const thead = document.createElement('thead');
-  // STICKY HEADER KLASSEN: sticky top-0, z-10, solider Hintergrund, damit dahinter nichts durchschimmert
   thead.className = 'sticky top-0 bg-slate-100 text-slate-800 font-bold border-b border-slate-300 shadow-xs z-10';
   
   const tbody = document.createElement('tbody');
