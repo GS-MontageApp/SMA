@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.19)
+ * MODUL: ui-pool.js (Schlauchmanagement-App v0.1.20)
  * ============================================================================
  * Kapselt die UI-Rendering-Routinen für den Dateipool und die Kunden-Dateiliste.
  */
