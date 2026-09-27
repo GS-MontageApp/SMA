@@ -1,10 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.39)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.41)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Sucht beim Öffnen auf der Bühne exakt nach dem Arbeitsblatt "Tabelle1" (großes T)
- * und blendet die "Auswahlseite" im UI rigoros aus.
+ * Greift beim Öffnen auf der Bühne kompromisslos und direkt auf "Tabelle1" zu.
  */
 
 window.currentActiveCustomer = null;
@@ -202,34 +201,11 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // EXKLUSIVE UI-FILTERUNG: Gezielte Suche nach "Tabelle1" (mit großem T)
+  // DIREKTER ZUGRIFF: Ausschließlich und kompromisslos "Tabelle1"
   let targetRows = null;
-  if (fileObj.sheets) {
-    const sheetKeys = Object.keys(fileObj.sheets);
-    
-    // 1. Exakter Treffer auf "Tabelle1" (sensitiv und insensitiv)
-    let validKey = sheetKeys.find(k => k === 'Tabelle1' || k.toLowerCase() === 'tabelle1');
-
-    // 2. Falls nicht gefunden, nimm das erste Blatt, das nicht "auswahl" im Namen hat
-    if (!validKey) {
-      validKey = sheetKeys.find(k => {
-        const lower = k.toLowerCase();
-        return !lower.includes('auswahl') && !lower.includes('choice');
-      });
-    }
-
-    // 3. Fallback: Erstes verfügbares Blatt
-    if (!validKey && sheetKeys.length > 0) {
-      validKey = sheetKeys[0];
-    }
-
-    if (validKey && fileObj.sheets[validKey]) {
-      targetRows = fileObj.sheets[validKey];
-    }
-  } 
-  
-  // Abwärtskompatibilität für alte Cache-Einträge
-  if (!targetRows && fileObj.rawData) {
+  if (fileObj.sheets && fileObj.sheets["Tabelle1"]) {
+    targetRows = fileObj.sheets["Tabelle1"];
+  } else if (fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
 
