@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.28)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.31)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
  */
@@ -31,7 +31,14 @@ window.AppData = {
     const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     return {
       "Beispielkunde 1": [
-        { name: "Beispielschlauchliste.xlsx", timestamp: nowStr, rawData: [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]] }
+        { 
+          name: "Beispielschlauchliste.xlsx", 
+          timestamp: nowStr, 
+          sheets: { 
+            "Tabelle1": [["Kunde", "Beispielkunde 1"], ["Schlauch-ID", "Typ", "Länge", "Druck"], ["SH-001", "2SN", "1500", "210"], ["SH-002", "4SH", "2000", "420"]],
+            "Auswahlseite": [["Auswahl", "Wert"], ["Option", "1"]]
+          } 
+        }
       ]
     };
   },
@@ -43,7 +50,7 @@ window.AppData = {
     if (!clients[clientName] || !Array.isArray(clients[clientName])) return false;
     return clients[clientName].some(f => f && f.name === fileName);
   },
-  addFileToClient: function(clientName, fileName, rawData, allSheets) {
+  addFileToClient: function(clientName, fileName, sheetsData) {
     let clients = this.getClients();
     if (!clients[clientName] || !Array.isArray(clients[clientName])) {
       clients[clientName] = [];
@@ -53,10 +60,9 @@ window.AppData = {
     const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
     if (existingIdx >= 0) {
       clients[clientName][existingIdx].timestamp = nowStr;
-      if (rawData) clients[clientName][existingIdx].rawData = rawData;
-      if (allSheets) clients[clientName][existingIdx].allSheets = allSheets;
+      if (sheetsData) clients[clientName][existingIdx].sheets = sheetsData;
     } else {
-      clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData, allSheets: allSheets });
+      clients[clientName].push({ name: fileName, timestamp: nowStr, sheets: sheetsData });
     }
     this.saveClients(clients);
   },
@@ -194,8 +200,52 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // Rendert explizit die gefilterten Daten von Tabelle1
-  const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
+  // GEZIELTE UI-LOGIK: Wir suchen in den gespeicherten Sheets exklusiv nach "Tabelle1"
+  let targetRows = null;
+  if (fileObj.sheets) {
+    const sheetKeys = Object.keys(fileObj.sheets);
+    const tab1Key = sheetKeys.find(k => k.toLowerCase() === 'tabelle1');
+    if (tab1Key) {
+      targetRows = fileObj.sheets[tab1Key];
+    } else if (sheetKeys.length > 0) {
+      // Fallback auf das erste Blatt, falls Tabelle1 nicht exakt so heißt
+      targetRows = fileObj.sheets[sheetKeys[0]];
+    }
+  } else if (fileObj.rawData) {
+    // Abwärtskompatibilität für ältere Cache-Einträge
+    targetRows = fileObj.rawData;
+  }
+
+  // Bereinigung und Strukturierung der Zeilen für die grafische Ansicht auf der Bühne
+  let rawData = [];
+  let headerFound = false;
+  if (targetRows && Array.isArray(targetRows)) {
+    targetRows.forEach(row => {
+      const hasContent = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+      if (!hasContent) return;
+
+      const rowString = row.join(' ').toLowerCase();
+      if (rowString.includes('kunde') || rowString.includes('anlage')) {
+        rawData.push(row);
+        return;
+      }
+
+      if (!headerFound && (rowString.includes('id') || rowString.includes('typ') || rowString.includes('länge') || rowString.includes('druck') || rowString.includes('kennz'))) {
+        headerFound = true;
+        rawData.push(row);
+        return;
+      }
+
+      if (headerFound) {
+        rawData.push(row);
+      }
+    });
+    if (rawData.length === 0) {
+      rawData = targetRows;
+    }
+  } else {
+    rawData = [["Info", "Keine Tabellendaten in Tabelle1 verfügbar"]];
+  }
 
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
@@ -250,7 +300,7 @@ window.closeFileOnStage = function() {
     const fileList = clients[window.currentActiveCustomer] || [];
     const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
     if (fileObj) {
-      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.rawData, fileObj.allSheets);
+      window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj.sheets);
     }
     window.openedFilesStack = window.openedFilesStack.filter(item => !(item.clientName === window.currentActiveCustomer && item.fileName === window.currentActiveFileName));
   }
@@ -362,7 +412,7 @@ window.handleExcelImport = function(event) {
           'Datei bereits vorhanden',
           `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
           function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.rawData, pendingImportData.allSheets);
+            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData.sheets);
             if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
               window.UIPool.renderDateipool();
             }
@@ -371,7 +421,7 @@ window.handleExcelImport = function(event) {
           }
         );
       } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.rawData, parsed.allSheets);
+        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed.sheets);
         if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
           window.UIPool.renderDateipool();
         }
