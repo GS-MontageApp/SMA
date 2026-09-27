@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.48 === -->
+  <!-- === SMA v0.1.49 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,19 +10,19 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.48</title>
+  <title id="page-title">Schlauchmanagement v0.1.49</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.48">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.49">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
   <!-- Modul-Einbindungen (ui-pool.js zwingend vor app-core.js) -->
   <script src="js/parser.js?v=v0.1.27"></script> <!-- Original Parser bleibt unberührt! -->
-  <script src="js/ui-pool.js?v=v0.1.48"></script>
-  <script src="js/auth.js?v=v0.1.48"></script>
-  <script src="js/app-core.js?v=v0.1.48"></script>
+  <script src="js/ui-pool.js?v=v0.1.49"></script>
+  <script src="js/auth.js?v=v0.1.49"></script>
+  <script src="js/app-core.js?v=v0.1.49"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -80,7 +80,7 @@
         <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
       </div>
 
-      <!-- Scrollbarer Tabellenbereich direkt ab Zeile 5 -->
+      <!-- Scrollbarer Tabellenbereich direkt ab Zeile 5 (maximale Bildschirmhöhe) -->
       <div id="buehne_table_container" class="flex-1 bg-white w-full">
         <!-- Dynamisch -->
       </div>
@@ -185,7 +185,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.48</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.49</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
