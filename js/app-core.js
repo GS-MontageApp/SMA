@@ -1,10 +1,10 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.37)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.38)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * Filtert beim Rendern auf der Bühne strikt nach "Tabelle1" und blendet 
- * Blätter wie "Auswahlseite" konsequent aus.
+ * Sorgt dafür, dass beim Öffnen auf der Bühne exklusiv "Tabelle1" angezeigt 
+ * und die "Auswahlseite" im UI rigoros unterdrückt wird.
  */
 
 window.currentActiveCustomer = null;
@@ -202,36 +202,36 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // EXKLUSIVE UI-FILTERUNG: Zwangsfokus auf Tabelle1, Ausschluss von Auswahlseite
+  // EXKLUSIVE UI-FILTERUNG: Wir erzwingen absolut, dass "Auswahlseite" ignoriert wird
   let targetRows = null;
   if (fileObj.sheets) {
     const sheetKeys = Object.keys(fileObj.sheets);
     
-    // 1. Suche exakt nach "Tabelle1" oder "Tabelle 1" (Case-insensitive)
-    let selectedKey = sheetKeys.find(k => {
+    // Finde ein Blatt, das exakt "Tabelle1" oder "Tabelle 1" heißt
+    let validKey = sheetKeys.find(k => {
       const lower = k.toLowerCase().replace(/\s+/g, '');
       return lower === 'tabelle1' || lower === 'tabelle_1';
     });
 
-    // 2. Falls kein exakter Treffer, nimm das erste Blatt, das NICHT "auswahl" im Namen hat
-    if (!selectedKey) {
-      selectedKey = sheetKeys.find(k => {
+    // Falls kein Tabelle1 existiert, nimm das erste Blatt, das KEIN "auswahl" im Namen hat
+    if (!validKey) {
+      validKey = sheetKeys.find(k => {
         const lower = k.toLowerCase();
         return !lower.includes('auswahl') && !lower.includes('choice');
       });
     }
 
-    // 3. Fallback, falls gar nichts passt, das erste verfügbare Blatt
-    if (!selectedKey && sheetKeys.length > 0) {
-      selectedKey = sheetKeys[0];
+    // Letzter Ausweg: das allererste Blatt
+    if (!validKey && sheetKeys.length > 0) {
+      validKey = sheetKeys[0];
     }
 
-    if (selectedKey && fileObj.sheets[selectedKey]) {
-      targetRows = fileObj.sheets[selectedKey];
+    if (validKey && fileObj.sheets[validKey]) {
+      targetRows = fileObj.sheets[validKey];
     }
   } 
   
-  // Abwärtskompatibilität für alte Cache-Einträge
+  // Rückwärtskompatibilität für ältere Cache-Objekte
   if (!targetRows && fileObj.rawData) {
     targetRows = fileObj.rawData;
   }
