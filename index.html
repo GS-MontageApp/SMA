@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.3 === -->
+  <!-- === SMA v0.1.4 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.3</title>
+  <title id="page-title">Schlauchmanagement v0.1.4</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.3">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.4">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -47,7 +47,7 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = titleText;
 
-      // Wenn wir zum Dateipool zurückkehren, Kacheln sofort aktualisieren
+      // Kacheln sofort aktualisieren bei Rückkehr zum Dateipool
       if (viewId === 'dateipool') {
         window.renderDateipool();
       }
@@ -60,7 +60,6 @@
         if (stored) {
           try { return JSON.parse(stored); } catch(e) { console.error(e); }
         }
-        // Standard-Dummy-Kunden mit initialen Objekten (Name + Zeitstempel)
         const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         return {
           "Kunde 1": [
@@ -87,7 +86,6 @@
         }
         const nowStr = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         
-        // Prüfen ob Datei schon existiert, ansonsten hinzufügen oder aktualisieren
         const existingIdx = clients[clientName].findIndex(f => f.name === fileName);
         if (existingIdx >= 0) {
           clients[clientName][existingIdx].timestamp = nowStr;
@@ -110,7 +108,6 @@
       }
     };
 
-    // Aktuell ausgewählter Kunde für die Dateilistenansicht
     let currentActiveCustomer = null;
 
     // UI-Aktualisierung des Dateipools (Kunden-Kacheln)
@@ -122,7 +119,7 @@
 
       const customerKeys = Object.keys(clients);
       if (customerKeys.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 py-2 col-span-full">Keine Kunden im Dateipool vorhanden.</p>';
+        container.innerHTML = '<p class="text-xs text-slate-400 py-3 col-span-full text-center">Keine Kunden im Dateipool vorhanden.</p>';
         return;
       }
 
@@ -132,16 +129,14 @@
         const card = document.createElement('div');
         card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex items-center justify-between group';
         
-        // Klick auf die Kachel öffnet die Dateiliste
         const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1 cursor-pointer';
-        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${clientName}</h3><p class="text-xs text-slate-400 mt-0.5">${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'}</p>`;
+        infoDiv.className = 'flex-1 cursor-pointer pr-2';
+        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base truncate">${clientName}</h3><p class="text-xs text-slate-400 mt-0.5">${fileCount} ${fileCount === 1 ? 'Datei' : 'Dateien'}</p>`;
         infoDiv.onclick = () => window.openCustomerFiles(clientName);
         card.appendChild(infoDiv);
 
-        // Löschen-Button für den Kunden
         const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
+        deleteBtn.className = 'p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm shrink-0';
         deleteBtn.title = 'Kunden löschen';
         deleteBtn.innerHTML = '🗑️';
         deleteBtn.onclick = (e) => {
@@ -175,7 +170,7 @@
       const files = clients[currentActiveCustomer] || [];
 
       if (files.length === 0) {
-        listContainer.innerHTML = '<p class="text-xs text-slate-400 py-2">Keine Dateien vorhanden.</p>';
+        listContainer.innerHTML = '<p class="text-xs text-slate-400 py-3 text-center">Keine Dateien vorhanden.</p>';
         return;
       }
 
@@ -184,27 +179,34 @@
         const timestamp = typeof fileObj === 'string' ? 'Unbekannt' : fileObj.timestamp;
 
         const card = document.createElement('div');
-        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex justify-between items-center cursor-pointer';
+        card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer';
         
-        // Gesamte Kachel antippen öffnet die Datei auf der Bühne
         card.onclick = () => alert(`Öffne ${fileName} auf der Bearbeitungs-Bühne...`);
 
         const infoDiv = document.createElement('div');
-        infoDiv.className = 'flex-1';
-        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base">${fileName}</h3><p class="text-xs text-slate-500 mt-0.5">Zuletzt lokal gespeichert am: ${timestamp}</p>`;
+        infoDiv.className = 'flex-1 min-w-0';
+        infoDiv.innerHTML = `<h3 class="font-bold text-slate-700 text-base break-all">${fileName}</h3><p class="text-xs text-slate-500 mt-1">Zuletzt lokal gespeichert am: ${timestamp}</p>`;
         card.appendChild(infoDiv);
 
-        // Einzelner Datei-Löschen-Button
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'flex items-center justify-end sm:justify-start gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200';
+
+        const openHint = document.createElement('span');
+        openHint.className = 'text-xs font-mono text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg font-bold';
+        openHint.innerHTML = 'Öffnen &rsaquo;';
+        actionsDiv.appendChild(openHint);
+
         const delFileBtn = document.createElement('button');
         delFileBtn.className = 'p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm';
         delFileBtn.title = 'Datei löschen';
         delFileBtn.innerHTML = '🗑️';
         delFileBtn.onclick = (e) => {
-          e.stopPropagation(); // Verhindert das Auslösen des Kachel-Klicks
+          e.stopPropagation();
           window.confirmDeleteFile(currentActiveCustomer, fileName);
         };
-        card.appendChild(delFileBtn);
+        actionsDiv.appendChild(delFileBtn);
 
+        card.appendChild(actionsDiv);
         listContainer.appendChild(card);
       });
     };
@@ -343,7 +345,7 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/auth.js?v=v0.1.3"></script>
+  <script src="js/auth.js?v=v0.1.4"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -388,7 +390,7 @@
         <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu bearbeiten.</p>
         
         <!-- Dynamischer Container für die Dateiliste -->
-        <div id="customer_files_list" class="space-y-2 pt-2">
+        <div id="customer_files_list" class="space-y-2.5 pt-2">
           <!-- Wird per JS gefüllt -->
         </div>
       </section>
@@ -451,7 +453,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.3</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.4</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
