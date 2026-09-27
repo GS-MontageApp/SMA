@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA v0.1.9 === -->
+  <!-- === SMA v0.1.10 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,11 +10,11 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.9</title>
+  <title id="page-title">Schlauchmanagement v0.1.10</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.9">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.10">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
@@ -47,8 +47,6 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = titleText;
 
-      window.updateFooterActiveFile(viewId === 'buehne' ? window.currentActiveFileName : null);
-
       if (viewId === 'dateipool') {
         window.renderDateipool();
       }
@@ -61,13 +59,12 @@
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
-            // Strikte Normalisierung: Jedes Kunden-Element MUSS ein Array sein!
             let normalized = {};
             for (let client in parsed) {
               if (Array.isArray(parsed[client])) {
                 normalized[client] = parsed[client];
               } else if (parsed[client]) {
-                normalized[client] = [parsed[client]]; // Fallback falls historisch ein Einzelobjekt vorlag
+                normalized[client] = [parsed[client]];
               } else {
                 normalized[client] = [];
               }
@@ -100,7 +97,7 @@
         const existingIdx = clients[clientName].findIndex(f => f && f.name === fileName);
         if (existingIdx >= 0) {
           clients[clientName][existingIdx].timestamp = nowStr;
-          clients[clientName][existingIdx].rawData = rawData;
+          if (rawData) clients[clientName][existingIdx].rawData = rawData;
         } else {
           clients[clientName].push({ name: fileName, timestamp: nowStr, rawData: rawData });
         }
@@ -122,19 +119,32 @@
 
     let currentActiveCustomer = null;
     let currentActiveFileName = null;
+    let openedFilesStack = []; // LIFO: Zuletzt geöffnete Datei ist ganz links
 
-    // Footer-Kachel aktualisieren (zeigt nur den reinen Dateinamen)
-    window.updateFooterActiveFile = function(fileName) {
+    // Multi-File Footer aktualisieren (nur Dateinamen, LIFO-Reihenfolge)
+    window.updateFooterOpenFiles = function() {
       const container = document.getElementById('file_tabs_container');
       if (!container) return;
       container.innerHTML = '';
 
-      if (fileName) {
-        const badge = document.createElement('div');
-        badge.className = 'bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-full truncate';
-        badge.innerHTML = `<span class="opacity-75 text-[10px] uppercase tracking-wider">Aktiv:</span> <span class="truncate">${fileName}</span>`;
-        container.appendChild(badge);
+      if (openedFilesStack.length === 0) {
+        container.innerHTML = '<span class="text-xs text-slate-400 px-2">Keine Datei geöffnet</span>';
+        return;
       }
+
+      openedFilesStack.forEach(fileName => {
+        const badge = document.createElement('div');
+        badge.className = 'bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 max-w-[200px] truncate cursor-pointer transition-colors';
+        badge.title = fileName;
+        badge.innerHTML = `<span class="truncate">${fileName}</span>`;
+        // Klick auf Footer-Kachel springt direkt zur jeweiligen Datei
+        badge.onclick = () => {
+          if (currentActiveCustomer) {
+            window.openFileOnStage(currentActiveCustomer, fileName, false);
+          }
+        };
+        container.appendChild(badge);
+      });
     };
 
     // Dateipool Kacheln rendern
@@ -185,7 +195,6 @@
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = customerName;
 
-      window.updateFooterActiveFile(null);
       window.renderCustomerFilesList();
     };
 
@@ -210,7 +219,7 @@
         const card = document.createElement('div');
         card.className = 'p-4 bg-slate-50 hover:bg-emerald-50/50 rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-all shadow-xs flex flex-col justify-between gap-3 cursor-pointer relative';
         
-        card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName);
+        card.onclick = () => window.openFileOnStage(currentActiveCustomer, fileName, true);
 
         const infoDiv = document.createElement('div');
         infoDiv.className = 'flex-1 min-w-0 pr-8';
@@ -231,8 +240,8 @@
       });
     };
 
-    // Aktive Bearbeitungs-Bühne: Edge-to-Edge Ansicht
-    window.openFileOnStage = function(clientName, fileName) {
+    // Aktive Bearbeitungs-Bühne öffnen & in LIFO-Stack aufnehmen
+    window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       const clients = window.AppData.getClients();
       const fileList = clients[clientName] || [];
       const fileObj = fileList.find(f => f && f.name === fileName);
@@ -243,6 +252,15 @@
       }
 
       currentActiveFileName = fileName;
+
+      if (pushToStack) {
+        // Entfernen falls bereits drin, dann ganz nach vorne (LIFO: links)
+        openedFilesStack = openedFilesStack.filter(f => f !== fileName);
+        openedFilesStack.unshift(fileName);
+      }
+
+      window.updateFooterOpenFiles();
+
       const rawData = fileObj.rawData || [["Info", "Keine Tabellendaten verfügbar"]];
 
       document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
@@ -251,8 +269,6 @@
 
       const titleEl = document.getElementById('header-title');
       if (titleEl) titleEl.textContent = `${clientName} / ${fileName}`;
-
-      window.updateFooterActiveFile(fileName);
 
       const container = document.getElementById('buehne_table_container');
       if (!container) return;
@@ -294,12 +310,39 @@
       container.appendChild(wrapper);
     };
 
+    // Excel-Tabelle auf der Bühne schließen, automatisch im LocalStorage speichern und aus Footer entfernen
+    window.closeFileOnStage = function() {
+      if (currentActiveCustomer && currentActiveFileName) {
+        // Automatisch im LocalStorage aktualisieren (timestamp erneuern)
+        const clients = window.AppData.getClients();
+        const fileList = clients[currentActiveCustomer] || [];
+        const fileObj = fileList.find(f => f && f.name === currentActiveFileName);
+        if (fileObj) {
+          window.AppData.addFileToClient(currentActiveCustomer, currentActiveFileName, fileObj.rawData);
+        }
+
+        // Aus dem offenen Stack entfernen
+        openedFilesStack = openedFilesStack.filter(f => f !== currentActiveFileName);
+      }
+
+      window.updateFooterOpenFiles();
+      
+      if (currentActiveCustomer) {
+        window.openCustomerFiles(currentActiveCustomer);
+      } else {
+        window.switchApp('dateipool', 'Dateipool');
+      }
+    };
+
     window.confirmDeleteFile = function(clientName, fileName) {
       window.showSystemModal(
         'Datei löschen',
         `Möchten Sie die Datei "${fileName}" wirklich unwiderruflich löschen?`,
         function() {
           window.AppData.removeFileFromClient(clientName, fileName);
+          // Falls sie offen war, auch aus dem Stack nehmen
+          openedFilesStack = openedFilesStack.filter(f => f !== fileName);
+          window.updateFooterOpenFiles();
           window.renderCustomerFilesList();
           window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
         }
@@ -411,8 +454,8 @@
   </script>
 
   <!-- Module Einbindung -->
-  <script src="js/parser.js?v=v0.1.9"></script>
-  <script src="js/auth.js?v=v0.1.9"></script>
+  <script src="js/parser.js?v=v0.1.10"></script>
+  <script src="js/auth.js?v=v0.1.10"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -461,11 +504,13 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus) -->
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Edge-to-Edge Modus mit Schließen-Button) -->
     <div id="view-buehne" class="app-view hidden flex-1 flex flex-col -mx-3 -mt-3">
       <div class="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between shrink-0">
         <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bearbeitungs-Bühne (Read-Only)</span>
-        <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
+        <button onclick="closeFileOnStage()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1 rounded-xl text-xs font-bold transition-colors shadow-2xs">
+          &times; Tabelle schließen
+        </button>
       </div>
       <div id="buehne_table_container" class="flex-1 bg-white">
         <!-- Dynamisch -->
@@ -485,9 +530,9 @@
 
   </main>
 
-  <!-- Footer Navigation mit aktiver Datei-Kachel -->
+  <!-- Footer Navigation mit Multi-File Kacheln (LIFO von links) -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-3 py-2 shrink-0 transition-colors">
-    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center">
+    <div id="file_tabs_container" class="max-w-3xl mx-auto flex items-center gap-2 overflow-x-auto">
       <!-- Wird dynamisch belegt -->
     </div>
   </footer>
@@ -518,7 +563,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.9</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.10</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -588,6 +633,7 @@
       const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
       setTheme(savedTheme);
       window.renderDateipool();
+      window.updateFooterOpenFiles();
     });
   </script>
 </body>
