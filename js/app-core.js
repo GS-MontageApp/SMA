@@ -1,12 +1,13 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.51)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.52)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.51: 
- * - Strikter Zeilen-für-Zeile-Validierungsfilter: Jede Zeile ab Zeile 5 wird 
- *   kompromisslos darauf geprüft, ob ein valider Schlauchtyp aus VALID_SCHLAUCH_TYPES
- *   enthalten ist. Nur valide Schläuche werden übernommen, Überschriften/Müll entfallen.
+ * ÄNDERUNG in v0.1.52: 
+ * - Trennung von Spaltensuche ("Kennz.") und Zeilenscan.
+ * - Die Spaltenbestimmung erfolgt flexibel über "Kennz." (egal auf welcher Seite).
+ * - Der Zeilenscan startet strikt ganz oben bei Zeile 0 und prüft jede Zeile
+ *   kompromisslos auf einen gültigen Schlauchtyp aus VALID_SCHLAUCH_TYPES.
  */
 
 window.currentActiveCustomer = null;
@@ -279,15 +280,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. PARSER MIT STRICTER ZEILEN-FÜR-ZEILE-VALIDIERUNG ÜBER SCHLAUCHTYPEN
+  // 2. PARSER MIT GETRENNTER SPALTENSUCHE UND ZEILENSCAN AB ZEILE 0
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows)) {
-    let headerRowIndex = 3; // Standard-Fallback Zeile 4
+    let headerRowIndex = 3; // Standard-Fallback
     let kennzColIndex = 0;
 
-    // Finde den exakten Spaltenkopf "Kennz."
+    // A) Spaltensuche ("Kennz.") nur zur Ausrichtung der Spalten A bis R (unabhängig vom Zeilenstart)
     for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
@@ -313,10 +314,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     let autoIncrementId = 1;
     const normalizedValidTypes = window.VALID_SCHLAUCH_TYPES.map(t => t.toUpperCase().trim());
 
-    // Starte strikt unterhalb des Spaltenkopfes (headerRowIndex + 1)
-    const dataStartIndex = headerRowIndex + 1;
-
-    for (let r = dataStartIndex; r < targetRows.length; r++) {
+    // B) Zeilenscan startet strikt ganz oben (Zeile 0) und prüft JEDE Zeile kompromisslos
+    for (let r = 0; r < targetRows.length; r++) {
       const row = targetRows[r];
       if (!Array.isArray(row)) continue;
 
@@ -327,7 +326,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: r, originalCol: c });
       }
 
-      // STRIKTE VALIDIERUNG: Jede Zeile muss in mindestens einer Zelle einen gültigen Schlauchtyp enthalten!
+      // Prüfe, ob in dieser Zeile ein gültiger Schlauchtyp enthalten ist
       let hasValidHoseType = false;
       for (let i = 0; i < extractedSlice.length; i++) {
         const cellStr = String(extractedSlice[i] || "").toUpperCase().trim();
@@ -337,7 +336,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         }
       }
 
-      // Wenn die Zeile keinen gültigen Schlauchtyp enthält (z.B. Zwischenüberschrift, leer, Unterschrift), überspringen!
+      // Wenn kein gültiger Schlauchtyp in der Zeile steht (z.B. Vorspann, Überschrift, Leerzeile), überspringen!
       if (!hasValidHoseType) {
         continue;
       }
@@ -563,15 +562,6 @@ window.openTopMenu = function() {
 window.closeTopMenu = function() {
   const menu = document.getElementById('top_menu_modal');
   if (menu) menu.classList.add('hidden');
-};
-
-window.openCacheClearManager = function() {
-  window.closeTopMenu();
-  const modal = document.getElementById('cache_clear_modal');
-  if (modal) {
-    document.querySelectorAll('.cache-checkbox').forEach(cb => cb.checked = false);
-    modal.classList.remove('hidden');
-  }
 };
 
 window.openCacheClearModal = function() {
