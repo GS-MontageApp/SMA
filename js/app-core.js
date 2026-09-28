@@ -1,8 +1,8 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.73)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.74)
  * ============================================================================
- * Kernlogik mit fester Spaltenstruktur (A bis R) und striktem Spalte-B-Schlauchfilter.
+ * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und exakten <br>-Umbrüchen.
  */
 
 window.currentActiveCustomer = null;
@@ -14,7 +14,7 @@ window.VALID_SCHLAUCH_TYPES = [
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
 ];
 
-// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17) mit angepassten Zeilenumbrüchen
+// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17) mit exakten Umbrüchen
 window.MASTER_COLUMNS = [
   { index: 0, key: "kennz", label: "Kennz." },
   { index: 1, key: "schlauch", label: "Schlauch" },
@@ -25,12 +25,12 @@ window.MASTER_COLUMNS = [
   { index: 6, key: "lage_a", label: "Lage A" },
   { index: 7, key: "lage_b", label: "Lage B" },
   { index: 8, key: "max_druck", label: "max.<br>Druck<br>(Bar)" },
-  { index: 9, key: "herstelldatum", label: "Herstelldatum" },
-  { index: 10, key: "sicherheits_bewertung", label: "Sicherheitstechnische Bewertung" },
-  { index: 11, key: "theor_lebensdauer", label: "Theor. Lebensdauer" },
-  { index: 12, key: "pruefung_am", label: "Prüfung am" },
+  { index: 9, key: "herstelldatum", label: "Herstell-<br>datum" },
+  { index: 10, key: "sicherheits_bewertung", label: "Sicherheits-<br>technische<br>Bewertung" },
+  { index: 11, key: "theor_lebensdauer", label: "Theor.<br>Lebensdauer" },
+  { index: 12, key: "pruefung_am", label: "Prüfung<br>am" },
   { index: 13, key: "pruefung_status", label: "Prüfung*" },
-  { index: 14, key: "naechste_pruefung", label: "Nächste Prüfung" },
+  { index: 14, key: "naechste_pruefung", label: "Nächste<br>Prüfung" },
   { index: 15, key: "pruefer", label: "Prüfer" },
   { index: 16, key: "einbauort", label: "Einbauort" },
   { index: 17, key: "bemerkung", label: "Bemerkung" }
@@ -252,7 +252,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   let coordinateMapping = [];
   const masterHeaderRowIndex = 3; // Zeile 3 (Index 3)
 
-  // STRIKTE PRÜFUNG: Spalte B (Index 1) muss exakt einen validen Schlauchtyp enthalten
   function isValidSchlauchRow(rowArray) {
     if (!Array.isArray(rowArray) || rowArray.length < 2) return false;
     const cellB = rowArray[1];
@@ -264,21 +263,18 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   }
 
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
-    // 1. Zwingend den fixen Master-Header (Spaltenbezeichnungen A-R) als erste Zeile erzwingen
     const headerLabels = window.MASTER_COLUMNS.map(col => col.label);
     rawData.push(headerLabels);
     coordinateMapping.push({ coords: headerLabels.map((_, idx) => ({ originalRow: masterHeaderRowIndex, originalCol: idx })), isHeader: true });
 
-    // 2. Alle Datenzeilen durchgehen und strikt nach Spalte B filtern
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
-      if (rIndex === masterHeaderRowIndex) return; // Header überspringen, da oben bereits fest gesetzt
+      if (rIndex === masterHeaderRowIndex) return;
 
       if (isValidSchlauchRow(row)) {
         let extractedSlice = [];
         let rowCoords = [];
         
-        // Exakt Spalte A bis R (Index 0 bis 17) einlesen
         for (let c = 0; c < 18; c++) {
           extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
           rowCoords.push({ originalRow: rIndex, originalCol: c });
@@ -331,7 +327,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     row.forEach((cellVal) => {
       const cell = isHeader ? document.createElement('th') : document.createElement('td');
       cell.className = 'px-4 py-3 whitespace-nowrap ' + (isHeader ? 'font-bold text-slate-900 bg-slate-200' : 'text-slate-600');
-      // Verwende innerHTML für den Header, damit <br> Umbrüche korrekt gerendert werden
+      
       if (isHeader) {
         cell.innerHTML = cellVal !== undefined && cellVal !== null ? cellVal : '';
       } else {
