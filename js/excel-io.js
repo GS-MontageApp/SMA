@@ -1,12 +1,17 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.85)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.86)
  * ============================================================================
- * Zentrales Einlese- (Parser) und Export-Modul (Robuste Template-Befüllung).
+ * Zentrales Einlese- (Parser) und Export-Modul. 
+ * Sendet die bearbeiteten Zelldaten an den Python-Backend-Microservice (Render),
+ * um 100% verlustfreien Export in die Excel-Vorlage (mit Logos, Grafiken & Dropdowns) zu garantieren.
  */
 
 (function(window) {
   'use strict';
+
+  // FIXE BACKEND URL (Render Microservice)
+  const BACKEND_EXPORT_URL = "https://sma-63h4.onrender.com/api/export";
 
   const ExcelIO = {
     validateFile: function(file) {
@@ -126,7 +131,7 @@
       reader.readAsArrayBuffer(file);
     },
 
-    // Zuverlässiger Export basierend auf templates/XLSX-Muster.xlsx
+    // Export über den Python-Backend-Microservice (100% Erhalt von Logos, Grafiken, Rahmen & Dropdowns)
     saveCurrentStageFile: async function() {
       if (!window.currentActiveCustomer || !window.currentActiveFileName) {
         window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
@@ -142,60 +147,65 @@
         return;
       }
 
-      const templatePath = 'templates/XLSX-Muster.xlsx';
-      window.showSystemModal('Export läuft', 'Lade originale Vorlage (templates/XLSX-Muster.xlsx) und generiere Kundendatei...', null, false);
+      window.showSystemModal('Export läuft', 'Sende Daten an den Render-Export-Server (100% Vorlagenerhalt)...', null, false);
 
       try {
-        const response = await fetch(templatePath);
-        if (!response.ok) {
-          throw new Error(`Vorlage konnte unter ${templatePath} nicht geladen werden (HTTP ${response.status}).`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        
-        // Lade das Template mit vollständigen Format- und Zellenoptionen
-        const workbook = XLSX.read(arrayBuffer, { type: 'array', cellStyles: true, cellFormulas: true });
-
+        // Sammle alle geänderten Zellen aus allen Sheets zusammen
+        let updates = [];
         for (let sheetName in fileObj.sheets) {
-          if (workbook.Sheets[sheetName]) {
-            const targetSheet = workbook.Sheets[sheetName];
-            const sourceRows = fileObj.sheets[sheetName];
-
-            sourceRows.forEach((row, rIdx) => {
-              if (Array.isArray(row)) {
-                row.forEach((cellVal, cIdx) => {
-                  const cellAddress = XLSX.utils.encode_cell({ r: rIdx, c: cIdx });
-                  if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
-                    if (!targetSheet[cellAddress]) {
-                      targetSheet[cellAddress] = { t: 's', v: cellVal };
-                    } else {
-                      targetSheet[cellAddress].v = cellVal;
-                      targetSheet[cellAddress].t = typeof cellVal === 'number' ? 'n' : 's';
-                    }
-                  }
-                });
-              }
-            });
-          }
+          const rows = fileObj.sheets[sheetName];
+          rows.forEach((row, rIdx) => {
+            if (Array.isArray(row)) {
+              row.forEach((cellVal, cIdx) => {
+                if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
+                  updates.push({
+                    sheet_name: sheetName,
+                    row: rIdx + 1, // openpyxl arbeitet 1-basiert
+                    col: cIdx + 1, // openpyxl arbeitet 1-basiert
+                    value: cellVal
+                  });
+                }
+              });
+            }
+          });
         }
 
-        const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
-        XLSX.writeFile(workbook, exportFileName);
+        const payload = {
+          filename: window.currentActiveFileName,
+          updates: updates
+        };
 
-        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde basierend auf der Originalvorlage erfolgreich exportiert und heruntergeladen.`, null, false);
+        const response = await fetch(BACKEND_EXPORT_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server-Fehler (HTTP ${response.status})`);
+        }
+
+        const blob = await response.blob();
+        const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
+        
+        // Plattformunabhängiger PWA/iOS Blob-Download
+        const blobUrl = URL.createObjectURL(blob);
+        const downloadLink = document.createElement('a');
+        downloadLink.href = blobUrl;
+        downloadLink.download = exportFileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde über den Server exportiert. Alle Logos, Grafiken, Rahmen und Dropdown-Menüs wurden vollständig beibehalten.`, null, false);
 
       } catch (err) {
-        console.error("Template Export Error:", err);
-        try {
-          const wb = XLSX.utils.book_new();
-          for (let sName in fileObj.sheets) {
-            const ws = XLSX.utils.aoa_to_sheet(fileObj.sheets[sName]);
-            XLSX.utils.book_append_sheet(wb, ws, sName);
-          }
-          XLSX.writeFile(wb, "Export_" + window.currentActiveFileName);
-          window.showSystemModal('Export-Hinweis', 'Vorlage konnte nicht per fetch geladen werden (CORS/Lokal-Modus). Es wurde ein Standard-Export der aktuellen Daten durchgeführt.', null, false);
-        } catch (fallbackErr) {
-          window.showSystemModal('Export-Fehler', err.message, null, false);
-        }
+        console.error("Backend Export Error:", err);
+        window.showSystemModal('Export-Fehler', `Verbindung zum Export-Server fehlgeschlagen: ${err.message}`, null, false);
       }
     }
   };
