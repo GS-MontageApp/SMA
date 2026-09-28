@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.65)
+ * MODUL: app-core.js (Schlauchmanagement-App)
  * ============================================================================
  * Kapselt die Kernlogik, Tabellen-Darstellung, Datenverwaltung und Sitzungssicherung.
- * AKTUALISIERUNG: Schlauch-Erkennung prüft strikt in Spalte B (Index 1) auf valide Typen.
+ * GEÄNDERT: Zeilenerkennung filtert nun strikt über Spalte B (Index 1).
  */
 
 window.currentActiveCustomer = null;
@@ -229,13 +229,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   let rawData = [];
   let coordinateMapping = [];
-  let headerRowIndex = 3; // Zeile 3 (Index 3) ist der Master-Header
+  let headerRowIndex = 3; // Zeile 3 als verbindlicher Master-Header
 
-  // NEUE LOGIK: Prüft, ob in Spalte B (Index 1) ein valider Schlauchtyp steht
-  function isValidSchlauchRowByColumnB(rowArray) {
+  // NEUE STRIKTE LOGIK: Prüft ausschließlich Spalte B (Index 1) auf einen validen Schlauchtyp
+  function isValidSchlauchRow(rowArray) {
     if (!Array.isArray(rowArray) || rowArray.length < 2) return false;
     const cellB = rowArray[1]; // Spalte B entspricht Index 1
-    if (cellB !== undefined && cellB !== null) {
+    if (cellB !== undefined && cellB !== null && cellB !== "") {
       const valStr = String(cellB).trim();
       return window.VALID_SCHLAUCH_TYPES.includes(valStr);
     }
@@ -246,25 +246,23 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
 
-      // Wir behalten die Spaltenbegrenzung bis Spalte R (Index 17) bei
-      let extractedSlice = [];
-      let rowCoords = [];
-      const maxColLimit = Math.min(row.length, 18);
-      
-      for (let c = 0; c < maxColLimit; c++) {
-        extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
-        rowCoords.push({ originalRow: rIndex, originalCol: c });
-      }
-
-      // Filter-Entscheidung: Header-Zeile immer behalten ODER Zeile hat Schlauch in Spalte B
       const isHeader = (rIndex === headerRowIndex);
-      const isSchlauch = isValidSchlauchRowByColumnB(row);
+      const isSchlauch = isValidSchlauchRow(row);
 
+      // Nur den Header oder Zeilen mit valide erkanntem Schlauch in Spalte B übernehmen!
       if (isHeader || isSchlauch) {
+        let extractedSlice = [];
+        let rowCoords = [];
+        const maxColLimit = Math.min(row.length, 18); // Begrenzung bis Spalte R (Index 17)
+        
+        for (let c = 0; c < maxColLimit; c++) {
+          extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
+          rowCoords.push({ originalRow: rIndex, originalCol: c });
+        }
+
         rawData.push(extractedSlice);
         coordinateMapping.push({ coords: rowCoords, isSchlauch: isSchlauch });
       }
-      // Alle anderen Zeilen ohne Schlauch in Spalte B werden übersprungen!
     });
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
@@ -297,15 +295,13 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   tbody.className = 'divide-y divide-slate-100';
 
   rawData.forEach((row, rowIndex) => {
-    // Da wir Zeilen ohne Schlauch in Spalte B bereits beim Einlesen herausgefiltert haben,
-    // ist der neue Header nach dem Filtern bei Index 3 (oder passend zur bereinigten Struktur).
-    const isHeader = (row[1] === "Schlauch" || rowIndex === 3); 
+    const isHeader = (rowIndex === 0); // Da nicht-Schlauchzeilen herausgefiltert wurden, ist der gefilterte Header nun ganz oben (Index 0)
     const tr = document.createElement('tr');
 
     if (isHeader) {
       tr.className = 'bg-slate-200 font-bold border-b-2 border-slate-400';
     } else {
-      tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors';
+      tr.className = 'hover:bg-slate-50 transition-colors';
     }
 
     row.forEach((cellVal) => {
