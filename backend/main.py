@@ -4,7 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs 
-mit robuster Behandlung von mehrfachen sqref-Bereichen.
+mit robuster Abfangung von verbundenen Zellen (MergedCells).
 """
 
 from fastapi import FastAPI, HTTPException
@@ -12,11 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import openpyxl
+from openpyxl.cell.cell import MergedCell
 import os
 import tempfile
 import re
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.10")
+app = FastAPI(title="SMA Export Microservice", version="1.0.11")
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,21 +70,35 @@ def export_excel(payload: ExportRequest):
             sheet_name = update.sheet_name
             if sheet_name in wb.sheetnames:
                 ws = wb[sheet_name]
-                ws.cell(row=update.row, column=update.col, value=update.value)
+                target_cell = ws.cell(row=update.row, column=update.col)
+                
+                # Falls die Zielzelle Teil eines verbundenen Zellbereichs ist (MergedCell),
+                # finden und beschreiben wir die obere linke Master-Zelle.
+                if isinstance(target_cell, MergedCell):
+                    found_master = False
+                    for range_str in ws.merged_cells.ranges:
+                        if target_cell.coordinate in range_str:
+                            min_col, min_row, _, _ = range_str.bounds
+                            target_cell = ws.cell(row=min_row, column=min_col)
+                            found_master = True
+                            break
+                    if not found_master:
+                        continue # Überspringen, falls keine Masterzelle ermittelbar
+
+                target_cell.value = update.value
                 if update.row > max_row_written:
                     max_row_written = update.row
             else:
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
 
-        # Robuste Anpassung der Validierungsbereiche ohne Entpackungsfehler
+        # Robuste Anpassung der Validierungsbereiche
         try:
             for sheetname in wb.sheetnames:
                 ws = wb[sheetname]
                 if hasattr(ws, 'data_validations') and ws.data_validations.dataValidation:
                     for dv in ws.data_validations.dataValidation:
                         current_sqref = str(dv.sqref)
-                        # Wenn mehrere Bereiche durch Leerzeichen getrennt sind, nehmen wir den ersten oder passen sie an
                         first_range = current_sqref.split()[0] if current_sqref else ""
                         if ":" in first_range:
                             start_col_row = first_range.split(":")[0]
