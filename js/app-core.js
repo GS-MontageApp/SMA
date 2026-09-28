@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.82)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.85)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -15,7 +15,6 @@ window.VALID_SCHLAUCH_TYPES = [
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
 ];
 
-// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17) mit exakten Umbrüchen
 window.MASTER_COLUMNS = [
   { index: 0, key: "kennz", label: "Kennz." },
   { index: 1, key: "schlauch", label: "Schlauch" },
@@ -251,7 +250,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   let rawData = [];
   let coordinateMapping = [];
-  const masterHeaderRowIndex = 3; // Zeile 3 (Index 3)
+  const masterHeaderRowIndex = 3;
 
   function isValidSchlauchRow(rowArray) {
     if (!Array.isArray(rowArray) || rowArray.length < 2) return false;
