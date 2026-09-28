@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.65)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.66)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.65: 
- * - MASTER-HEADER IN ZEILE 3: Die Tabellenköpfe und Kennzeichnungen werden explizit aus Zeile 3 (Index 3) ausgelesen und als Sticky-Header gesetzt.
- * - SPALTENBESCHRÄNKUNG: Ausgabe auf der Bühne ist strikt auf Spalten A bis R (Index 0 bis 17) begrenzt.
- * - Anti-Cache Version v0.1.65 Integration.
+ * ÄNDERUNG in v0.1.66: 
+ * - SCHLAUCHTYP-SCANNING: Das Skript durchsucht jede Zeile von Anfang bis Ende nach gültigen Schlauchtypen (aus VALID_SCHLAUCH_TYPES) und markiert/filtert valide Datensätze.
+ * - Zeile 3 als Master-Header & Spalten A bis R (Index 0 bis 17) Beschränkung.
+ * - Anti-Cache Version v0.1.66 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -231,10 +231,20 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R (Index 0 bis 17)
+  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R & SCHLAUCHTYP-SCANNING LOGIK
   let rawData = [];
   let coordinateMapping = [];
-  let headerRowIndex = 3; // Zeile 3 als verbindlicher Tabellenkopf (Kennzeichnungen)
+  let headerRowIndex = 3; // Zeile 3 als verbindlicher Tabellenkopf
+
+  // Hilfsfunktion zur Prüfung, ob eine Zeile einen gültigen Schlauchtyp enthält
+  function containsValidSchlauchType(rowArray) {
+    if (!Array.isArray(rowArray)) return false;
+    return rowArray.some(cell => {
+      if (cell === undefined || cell === null) return false;
+      const valStr = String(cell).trim();
+      return window.VALID_SCHLAUCH_TYPES.includes(valStr);
+    });
+  }
   
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
     targetRows.forEach((row, rIndex) => {
@@ -242,7 +252,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
       let extractedSlice = [];
       let rowCoords = [];
-      // Beschränkung auf maximal Spalte R (Index 17, also 18 Spalten von A bis R)
       const maxColLimit = Math.min(row.length, 18);
       
       for (let c = 0; c < maxColLimit; c++) {
@@ -250,17 +259,25 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
 
+      // Markiere oder erkenne, ob es sich um eine valide Schlauchzeile handelt
+      let isSchlauchRow = containsValidSchlauchType(row);
+      if (rIndex === headerRowIndex) {
+        // Zeile 3 ist der Header und wird immer durchgereicht
+        isSchlauchRow = true;
+      }
+
       rawData.push(extractedSlice);
-      coordinateMapping.push(rowCoords);
+      coordinateMapping.push({ coords: rowCoords, isSchlauch: isSchlauchRow });
     });
 
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
+    coordinateMapping = [[{ originalRow: 0, originalCol: 0 }]];
   }
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne mit Zeile 3 als Sticky Header
+  // 3. Rendern auf die Bühne
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -286,11 +303,18 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   rawData.forEach((row, rowIndex) => {
     const tr = document.createElement('tr');
-    
-    // Identifiziere Zeile 3 (Index 3) als Tabellenkopf-Zeile
     const isHeader = (rowIndex === headerRowIndex);
-    
-    tr.className = isHeader ? 'bg-slate-200 font-bold border-b-2 border-slate-400' : 'hover:bg-slate-50/80 transition-colors';
+    const rowMeta = coordinateMapping[rowIndex];
+    const isSchlauch = rowMeta && rowMeta.isSchlauch;
+
+    // Visuelle Hervorhebung für erkannte Schlauchzeilen vs. Metadatenzeilen
+    if (isHeader) {
+      tr.className = 'bg-slate-200 font-bold border-b-2 border-slate-400';
+    } else if (isSchlauch) {
+      tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors'; // Erkannter Schlauch datensatz
+    } else {
+      tr.className = 'hover:bg-slate-50/80 transition-colors';
+    }
 
     row.forEach((cellVal) => {
       const cell = isHeader ? document.createElement('th') : document.createElement('td');
