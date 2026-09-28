@@ -3,6 +3,7 @@
  * MODUL: app-core.js (Schlauchmanagement-App v0.1.65)
  * ============================================================================
  * Kapselt die Kernlogik, Tabellen-Darstellung, Datenverwaltung und Sitzungssicherung.
+ * AKTUALISIERUNG: Schlauch-Erkennung prüft strikt in Spalte B (Index 1) auf valide Typen.
  */
 
 window.currentActiveCustomer = null;
@@ -228,12 +229,24 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   let rawData = [];
   let coordinateMapping = [];
-  let headerRowIndex = 3;
+  let headerRowIndex = 3; // Zeile 3 (Index 3) ist der Master-Header
+
+  // NEUE LOGIK: Prüft, ob in Spalte B (Index 1) ein valider Schlauchtyp steht
+  function isValidSchlauchRowByColumnB(rowArray) {
+    if (!Array.isArray(rowArray) || rowArray.length < 2) return false;
+    const cellB = rowArray[1]; // Spalte B entspricht Index 1
+    if (cellB !== undefined && cellB !== null) {
+      const valStr = String(cellB).trim();
+      return window.VALID_SCHLAUCH_TYPES.includes(valStr);
+    }
+    return false;
+  }
 
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
 
+      // Wir behalten die Spaltenbegrenzung bis Spalte R (Index 17) bei
       let extractedSlice = [];
       let rowCoords = [];
       const maxColLimit = Math.min(row.length, 18);
@@ -243,8 +256,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
 
-      rawData.push(extractedSlice);
-      coordinateMapping.push({ coords: rowCoords });
+      // Filter-Entscheidung: Header-Zeile immer behalten ODER Zeile hat Schlauch in Spalte B
+      const isHeader = (rIndex === headerRowIndex);
+      const isSchlauch = isValidSchlauchRowByColumnB(row);
+
+      if (isHeader || isSchlauch) {
+        rawData.push(extractedSlice);
+        coordinateMapping.push({ coords: rowCoords, isSchlauch: isSchlauch });
+      }
+      // Alle anderen Zeilen ohne Schlauch in Spalte B werden übersprungen!
     });
   } else {
     rawData = [["Info", "Keine Tabellendaten verfügbar"]];
@@ -277,13 +297,15 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   tbody.className = 'divide-y divide-slate-100';
 
   rawData.forEach((row, rowIndex) => {
+    // Da wir Zeilen ohne Schlauch in Spalte B bereits beim Einlesen herausgefiltert haben,
+    // ist der neue Header nach dem Filtern bei Index 3 (oder passend zur bereinigten Struktur).
+    const isHeader = (row[1] === "Schlauch" || rowIndex === 3); 
     const tr = document.createElement('tr');
-    const isHeader = (rowIndex === headerRowIndex);
 
     if (isHeader) {
       tr.className = 'bg-slate-200 font-bold border-b-2 border-slate-400';
     } else {
-      tr.className = 'hover:bg-slate-50 transition-colors';
+      tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors';
     }
 
     row.forEach((cellVal) => {
