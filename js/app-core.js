@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.80)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.81)
  * ============================================================================
- * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter, exakten <br>-Umbrüchen
- * sowie dem Template-basierten Excel-Export auf Basis von templates/XLSX-Muster.xlsx.
+ * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
 
 window.currentActiveCustomer = null;
@@ -338,7 +337,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         input.value = cellVal !== undefined && cellVal !== null ? cellVal : '';
         input.className = 'w-full bg-transparent border-0 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 text-xs sm:text-sm text-slate-700';
         
-        // Live-Sync bei Eingabe in die UI-Tabelle zurück in den aktiven Speicher
         input.oninput = function(e) {
           const newVal = e.target.value;
           if (window.currentActiveCoordinateMapping && window.currentActiveCoordinateMapping[rowIndex]) {
@@ -378,81 +376,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   table.appendChild(tbody);
   wrapper.appendChild(table);
   container.appendChild(wrapper);
-};
-
-// EXPORT-MANAGER: Lädt templates/XLSX-Muster.xlsx, aktualisiert die Zellen und bietet Download an
-window.saveCurrentStageFile = async function() {
-  if (!window.currentActiveCustomer || !window.currentActiveFileName) {
-    window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
-    return;
-  }
-
-  const clients = window.AppData.getClients();
-  const fileList = clients[window.currentActiveCustomer] || [];
-  const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
-
-  if (!fileObj || !fileObj.sheets) {
-    window.showSystemModal('Fehler', 'Die aktuelle Datei konnte im Speicher nicht gefunden werden.', null, false);
-    return;
-  }
-
-  const templatePath = 'templates/XLSX-Muster.xlsx';
-  window.showSystemModal('Export läuft', 'Lade originale Vorlage (templates/XLSX-Muster.xlsx) und bereite Export vor...', null, false);
-
-  try {
-    const response = await fetch(templatePath);
-    if (!response.ok) {
-      throw new Error(`Vorlage konnte unter ${templatePath} nicht geladen werden (HTTP ${response.status}).`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    
-    // Lese die originale Vorlage als Binär-Workbook (behält alle Logos, Styles, Dropdowns und Grafiken bei)
-    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellStyles: true, cellFormulas: true });
-
-    // Fülle die modifizierten Daten aus dem Arbeitsspeicher in das Vorlagen-Workbook ein
-    for (let sheetName in fileObj.sheets) {
-      if (workbook.Sheets[sheetName]) {
-        const targetSheet = workbook.Sheets[sheetName];
-        const sourceRows = fileObj.sheets[sheetName];
-
-        sourceRows.forEach((row, rIdx) => {
-          if (Array.isArray(row)) {
-            row.forEach((cellVal, cIdx) => {
-              const cellAddress = XLSX.utils.encode_cell({ r: rIdx, c: cIdx });
-              if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
-                if (!targetSheet[cellAddress]) {
-                  targetSheet[cellAddress] = { t: 's', v: cellVal };
-                } else {
-                  targetSheet[cellAddress].v = cellVal;
-                  targetSheet[cellAddress].t = typeof cellVal === 'number' ? 'n' : 's';
-                }
-              }
-            });
-          }
-        });
-      }
-    }
-
-    const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
-    XLSX.writeFile(workbook, exportFileName);
-
-    window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde basierend auf der Originalvorlage erfolgreich exportiert und heruntergeladen. Alle Layouts, Rahmen und Dropdowns wurden beibehalten.`, null, false);
-
-  } catch (err) {
-    console.error("Template Export Error:", err);
-    // Fallback: Direkter Export ohne Vorlagen-Fetch falls fetch im lokalen Dateisystem blockiert wird
-    try {
-      const wb = XLSX.utils.book_new();
-      for (let sName in fileObj.sheets) {
-        const ws = XLSX.utils.aoa_to_sheet(fileObj.sheets[sName]);
-        XLSX.utils.book_append_sheet(wb, ws, sName);
-      }
-      XLSX.writeFile(wb, "Export_" + window.currentActiveFileName);
-      window.showSystemModal('Export-Hinweis', 'Vorlage konnte nicht per fetch geladen werden (CORS/Lokal-Modus). Es wurde ein Standard-Export der aktuellen Daten durchgeführt.', null, false);
-    } catch (fallbackErr) {
-      window.showSystemModal('Export-Fehler', err.message, null, false);
-    }
-  }
 };
 
 window.closeFileOnStage = function() {
@@ -546,58 +469,6 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true) 
   };
 
   modal.classList.remove('hidden');
-};
-
-let pendingImportData = null;
-
-window.handleExcelImport = function(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  try {
-    window.ExcelParser.validateFile(file);
-  } catch (err) {
-    window.showSystemModal('Validierungsfehler', err.message, null, false);
-    event.target.value = '';
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const parsed = window.ExcelParser.parseFileBuffer(e.target.result, file.name);
-      pendingImportData = parsed;
-
-      if (window.AppData.hasFile(parsed.client, parsed.filename)) {
-        window.showSystemModal(
-          'Datei bereits vorhanden',
-          `Die Datei "${parsed.filename}" existiert bereits für ${parsed.client}. Möchten Sie die vorhandene Version überschreiben?`,
-          function() {
-            window.AppData.addFileToClient(pendingImportData.client, pendingImportData.filename, pendingImportData);
-            if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
-              window.UIPool.renderDateipool();
-            }
-            window.showSystemModal('Erfolgreich', `Die Datei "${pendingImportData.filename}" wurde für ${parsed.client} aktualisiert.`, null, false);
-            window.switchApp('dateipool', 'Dateipool');
-          }
-        );
-      } else {
-        window.AppData.addFileToClient(parsed.client, parsed.filename, parsed);
-        if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
-          window.UIPool.renderDateipool();
-        }
-        window.showSystemModal('Erfolgreich', `Erfolgreich importiert!\nKunde: ${parsed.client}\nDatei: ${parsed.filename}`, null, false);
-        window.switchApp('dateipool', 'Dateipool');
-      }
-
-    } catch (err) {
-      console.error(err);
-      window.showSystemModal('Fehler', err.message, null, false);
-    } finally {
-      event.target.value = '';
-    }
-  };
-  reader.readAsArrayBuffer(file);
 };
 
 window.openTopMenu = function() {
