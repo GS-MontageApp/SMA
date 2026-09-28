@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.75)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.76)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und exakten <br>-Umbrüchen.
  */
@@ -303,7 +303,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   container.innerHTML = '';
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'overflow-x-auto overflow-y-auto h-[calc(100vh-140px)] bg-white shadow-none w-full relative';
+  wrapper.className = 'w-full overflow-x-auto overflow-y-auto h-[calc(100vh-140px)] bg-white shadow-none';
 
   const table = document.createElement('table');
   table.className = 'w-full text-left border-collapse text-xs sm:text-sm text-slate-700 min-w-max';
