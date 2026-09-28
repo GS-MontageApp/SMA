@@ -1,19 +1,26 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.86)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.87)
  * ============================================================================
- * Zentrales Einlese- (Parser) und Export-Modul. 
- * Sendet die bearbeiteten Zelldaten an den Python-Backend-Microservice (Render),
- * um 100% verlustfreien Export in die Excel-Vorlage (mit Logos, Grafiken & Dropdowns) zu garantieren.
+ * Zentrales Einlese- (Parser) und Export-Modul inklusive Hintergrund-Ping 
+ * zum Aufwecken des Render-Backends und servergestütztem openpyxl-Export.
  */
 
 (function(window) {
   'use strict';
 
-  // FIXE BACKEND URL (Render Microservice)
-  const BACKEND_EXPORT_URL = "https://sma-63h4.onrender.com/api/export";
+  const BACKEND_BASE_URL = "https://sma-63h4.onrender.com";
+  const BACKEND_EXPORT_URL = `${BACKEND_BASE_URL}/api/export`;
 
   const ExcelIO = {
+    // Automatischer "Wachmacher"-Ping beim App-Start im Hintergrund
+    pingBackend: function() {
+      fetch(BACKEND_BASE_URL + "/")
+        .then(res => res.json())
+        .then(data => console.log("Backend Status:", data))
+        .catch(err => console.log("Backend pinging in background...", err));
+    },
+
     validateFile: function(file) {
       if (!file) throw new Error("Keine Datei ausgewählt.");
       const validExtensions = ['.xls', '.xlsx'];
@@ -131,7 +138,7 @@
       reader.readAsArrayBuffer(file);
     },
 
-    // Export über den Python-Backend-Microservice (100% Erhalt von Logos, Grafiken, Rahmen & Dropdowns)
+    // Export über den Python-Backend-Microservice
     saveCurrentStageFile: async function() {
       if (!window.currentActiveCustomer || !window.currentActiveFileName) {
         window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
@@ -147,10 +154,9 @@
         return;
       }
 
-      window.showSystemModal('Export läuft', 'Sende Daten an den Render-Export-Server (100% Vorlagenerhalt)...', null, false);
+      window.showSystemModal('Export läuft', 'Sende Daten an den Export-Server (100% Vorlagenerhalt)...', null, false);
 
       try {
-        // Sammle alle geänderten Zellen aus allen Sheets zusammen
         let updates = [];
         for (let sheetName in fileObj.sheets) {
           const rows = fileObj.sheets[sheetName];
@@ -160,8 +166,8 @@
                 if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
                   updates.push({
                     sheet_name: sheetName,
-                    row: rIdx + 1, // openpyxl arbeitet 1-basiert
-                    col: cIdx + 1, // openpyxl arbeitet 1-basiert
+                    row: rIdx + 1, // openpyxl 1-based
+                    col: cIdx + 1, // openpyxl 1-based
                     value: cellVal
                   });
                 }
@@ -191,7 +197,6 @@
         const blob = await response.blob();
         const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
         
-        // Plattformunabhängiger PWA/iOS Blob-Download
         const blobUrl = URL.createObjectURL(blob);
         const downloadLink = document.createElement('a');
         downloadLink.href = blobUrl;
