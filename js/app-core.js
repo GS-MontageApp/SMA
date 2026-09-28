@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.64)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.65)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.64: 
+ * ÄNDERUNG in v0.1.65: 
+ * - MASTER-HEADER IN ZEILE 3: Die Tabellenköpfe und Kennzeichnungen werden explizit aus Zeile 3 (Index 3) ausgelesen und als Sticky-Header gesetzt.
  * - SPALTENBESCHRÄNKUNG: Ausgabe auf der Bühne ist strikt auf Spalten A bis R (Index 0 bis 17) begrenzt.
- * - EXAKTES SHEET-TARGETING auf "Tabelle1" (Case-Sensitive) & 100% Rohfassung für Zeilen.
- * - Anti-Cache Version v0.1.64 Integration.
+ * - Anti-Cache Version v0.1.65 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -234,6 +234,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R (Index 0 bis 17)
   let rawData = [];
   let coordinateMapping = [];
+  let headerRowIndex = 3; // Zeile 3 als verbindlicher Tabellenkopf (Kennzeichnungen)
   
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
     targetRows.forEach((row, rIndex) => {
@@ -259,7 +260,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne
+  // 3. Rendern auf die Bühne mit Zeile 3 als Sticky Header
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -285,16 +286,20 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   rawData.forEach((row, rowIndex) => {
     const tr = document.createElement('tr');
-    tr.className = rowIndex === 0 ? 'bg-slate-100' : 'hover:bg-slate-50/80 transition-colors';
+    
+    // Identifiziere Zeile 3 (Index 3) als Tabellenkopf-Zeile
+    const isHeader = (rowIndex === headerRowIndex);
+    
+    tr.className = isHeader ? 'bg-slate-200 font-bold border-b-2 border-slate-400' : 'hover:bg-slate-50/80 transition-colors';
 
     row.forEach((cellVal) => {
-      const cell = rowIndex === 0 ? document.createElement('th') : document.createElement('td');
-      cell.className = 'px-4 py-3 whitespace-nowrap ' + (rowIndex === 0 ? 'font-bold text-slate-800 bg-slate-100' : 'text-slate-600');
+      const cell = isHeader ? document.createElement('th') : document.createElement('td');
+      cell.className = 'px-4 py-3 whitespace-nowrap ' + (isHeader ? 'font-bold text-slate-900 bg-slate-200' : 'text-slate-600');
       cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
       tr.appendChild(cell);
     });
 
-    if (rowIndex === 0) {
+    if (isHeader) {
       thead.appendChild(tr);
     } else {
       tbody.appendChild(tr);
