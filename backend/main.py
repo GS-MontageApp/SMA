@@ -4,7 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs 
-sowie exakter Einschränkung der Autofilter auf Zeile 4.
+ohne künstliche Autofilter-Verschiebung.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -17,7 +17,7 @@ import os
 import tempfile
 import re
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.12")
+app = FastAPI(title="SMA Export Microservice", version="1.0.13")
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,19 +90,8 @@ def export_excel(payload: ExportRequest):
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
 
-        # Korrektur der Autofilter-Bereiche: Verhindert Filter-Pfeile in Zeile 1
-        try:
-            for sheetname in wb.sheetnames:
-                ws = wb[sheetname]
-                if ws.auto_filter and ws.auto_filter.ref:
-                    # Setze den Autofilter exakt auf den Tabellenkopf in Zeile 4 bis max_row_written
-                    match = re.match(r"([A-Z]+)\d+:([A-Z]+)\d+", ws.auto_filter.ref)
-                    if match:
-                        start_col = match.group(1)
-                        end_col = match.group(2)
-                        ws.auto_filter.ref = f"{start_col}4:{end_col}{max(max_row_written, 50)}"
-        except Exception as af_err:
-            print(f"Hinweis bei Autofilter-Anpassung (unkritisch): {str(af_err)}")
+        # HINWEIS: Wir greifen NICHT mehr in ws.auto_filter.ref ein, 
+        # damit die originalen Autofilter der Vorlage 1:1 erhalten bleiben!
 
         # Robuste Anpassung der Validierungsbereiche (Dropdowns ab Zeile 5)
         try:
