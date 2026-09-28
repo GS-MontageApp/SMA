@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.72)
  * ============================================================================
- * Kapselt die Kernlogik, Tabellen-Darstellung, Datenverwaltung und Sitzungssicherung.
- * GEÄNDERT: Zeilenerkennung filtert nun strikt über Spalte B (Index 1).
+ * Kernlogik mit fester Spaltenstruktur (A bis R) und striktem Spalte-B-Schlauchfilter.
  */
 
 window.currentActiveCustomer = null;
@@ -13,6 +12,28 @@ window.openedFilesStack = [];
 window.VALID_SCHLAUCH_TYPES = [
   "1SN", "2SN", "4SP", "4SH", "R13", "R15", "462", 
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
+];
+
+// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17)
+window.MASTER_COLUMNS = [
+  { index: 0, key: "kennz", label: "Kennz." },
+  { index: 1, key: "schlauch", label: "Schlauch" },
+  { index: 2, key: "nw", label: "NW" },
+  { index: 3, key: "anschluss_a", label: "Anschluss A" },
+  { index: 4, key: "anschluss_b", label: "Anschluss B" },
+  { index: 5, key: "laenge", label: "Länge" },
+  { index: 6, key: "lage_a", label: "Lage A" },
+  { index: 7, key: "lage_b", label: "Lage B" },
+  { index: 8, key: "max_druck", label: "Max. Druck (Bar)" },
+  { index: 9, key: "herstelldatum", label: "Herstelldatum" },
+  { index: 10, key: "sicherheits_bewertung", label: "Sicherheitstechnische Bewertung" },
+  { index: 11, key: "theor_lebensdauer", label: "Theor. Lebensdauer" },
+  { index: 12, key: "pruefung_am", label: "Prüfung am" },
+  { index: 13, key: "pruefung_status", label: "Prüfung*" },
+  { index: 14, key: "naechste_pruefung", label: "Nächste Prüfung" },
+  { index: 15, key: "pruefer", label: "Prüfer" },
+  { index: 16, key: "einbauort", label: "Einbauort" },
+  { index: 17, key: "bemerkung", label: "Bemerkung" }
 ];
 
 window.AppData = {
@@ -44,10 +65,10 @@ window.AppData = {
             "Tabelle1": [
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
-              ["Anlage", "Hubtisch 4", "", "", "", "", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstell-datum", "Sicherheits-technische Bewertung", "Theor. Lebens-dauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], 
-              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""], 
-              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "", ""]  
+              ["Anlage", "Hubtisch 4", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "Max. Druck (Bar)", "Herstelldatum", "Sicherheitstechnische Bewertung", "Theor. Lebensdauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "Halle 1", "OK"], 
+              ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "Halle 2", "Wartung"]  
             ]
           } 
         }
@@ -229,12 +250,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   let rawData = [];
   let coordinateMapping = [];
-  let headerRowIndex = 3; // Zeile 3 als verbindlicher Master-Header
+  const masterHeaderRowIndex = 3; // Zeile 3 (Index 3)
 
-  // NEUE STRIKTE LOGIK: Prüft ausschließlich Spalte B (Index 1) auf einen validen Schlauchtyp
+  // STRIKTE PRÜFUNG: Spalte B (Index 1) muss exakt einen validen Schlauchtyp enthalten
   function isValidSchlauchRow(rowArray) {
     if (!Array.isArray(rowArray) || rowArray.length < 2) return false;
-    const cellB = rowArray[1]; // Spalte B entspricht Index 1
+    const cellB = rowArray[1];
     if (cellB !== undefined && cellB !== null && cellB !== "") {
       const valStr = String(cellB).trim();
       return window.VALID_SCHLAUCH_TYPES.includes(valStr);
@@ -243,30 +264,33 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   }
 
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
+    // 1. Zwingend den fixen Master-Header (Spaltenbezeichnungen A-R) als erste Zeile erzwingen
+    const headerLabels = window.MASTER_COLUMNS.map(col => col.label);
+    rawData.push(headerLabels);
+    coordinateMapping.push({ coords: headerLabels.map((_, idx) => ({ originalRow: masterHeaderRowIndex, originalCol: idx })), isHeader: true });
+
+    // 2. Alle Datenzeilen durchgehen und strikt nach Spalte B filtern
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
+      if (rIndex === masterHeaderRowIndex) return; // Header überspringen, da oben bereits fest gesetzt
 
-      const isHeader = (rIndex === headerRowIndex);
-      const isSchlauch = isValidSchlauchRow(row);
-
-      // Nur den Header oder Zeilen mit valide erkanntem Schlauch in Spalte B übernehmen!
-      if (isHeader || isSchlauch) {
+      if (isValidSchlauchRow(row)) {
         let extractedSlice = [];
         let rowCoords = [];
-        const maxColLimit = Math.min(row.length, 18); // Begrenzung bis Spalte R (Index 17)
         
-        for (let c = 0; c < maxColLimit; c++) {
+        // Exakt Spalte A bis R (Index 0 bis 17) einlesen
+        for (let c = 0; c < 18; c++) {
           extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
           rowCoords.push({ originalRow: rIndex, originalCol: c });
         }
 
         rawData.push(extractedSlice);
-        coordinateMapping.push({ coords: rowCoords, isSchlauch: isSchlauch });
+        coordinateMapping.push({ coords: rowCoords, isSchlauch: true });
       }
     });
   } else {
-    rawData = [["Info", "Keine Tabellendaten verfügbar"]];
-    coordinateMapping = [[{ originalRow: 0, originalCol: 0 }]];
+    rawData = [window.MASTER_COLUMNS.map(c => c.label), ["Info", "Keine Tabellendaten verfügbar"]];
+    coordinateMapping = [];
   }
 
   window.currentActiveCoordinateMapping = coordinateMapping;
@@ -295,7 +319,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   tbody.className = 'divide-y divide-slate-100';
 
   rawData.forEach((row, rowIndex) => {
-    const isHeader = (rowIndex === 0); // Da nicht-Schlauchzeilen herausgefiltert wurden, ist der gefilterte Header nun ganz oben (Index 0)
+    const isHeader = (rowIndex === 0);
     const tr = document.createElement('tr');
 
     if (isHeader) {
