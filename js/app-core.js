@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.74)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.75)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und exakten <br>-Umbrüchen.
  */
