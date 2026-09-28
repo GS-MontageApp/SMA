@@ -3,8 +3,7 @@
 MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
-Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs 
-ohne Autofilter-Manipulation (Original-Autofilter unangetastet).
+Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -17,7 +16,7 @@ import os
 import tempfile
 import re
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.14")
+app = FastAPI(title="SMA Export Microservice", version="1.0.15")
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,9 +88,6 @@ def export_excel(payload: ExportRequest):
             else:
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
-
-        # HINWEIS: Wir lassen die Autofilter der Vorlage absolut unangetastet,
-        # um fehlerhafte Pfeil-Verschiebungen zu verhindern.
 
         # Robuste Anpassung der Validierungsbereiche (Dropdowns ab Zeile 5)
         try:
