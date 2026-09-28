@@ -1,9 +1,8 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.87)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.88)
  * ============================================================================
- * Zentrales Einlese- (Parser) und Export-Modul inklusive Hintergrund-Ping 
- * zum Aufwecken des Render-Backends und servergestütztem openpyxl-Export.
+ * Zentrales Einlese- (Parser) und Export-Modul.
  */
 
 (function(window) {
@@ -13,7 +12,6 @@
   const BACKEND_EXPORT_URL = `${BACKEND_BASE_URL}/api/export`;
 
   const ExcelIO = {
-    // Automatischer "Wachmacher"-Ping beim App-Start im Hintergrund
     pingBackend: function() {
       fetch(BACKEND_BASE_URL + "/")
         .then(res => res.json())
@@ -31,8 +29,8 @@
         throw new Error("Ungültiges Dateiformat. Bitte wählen Sie eine .xls oder .xlsx Datei aus.");
       }
       
-      const maxSize = 600 * 1024; // 600 KB OOM-Schutz
-      const minSize = 10 * 1024;  // 10 KB Mindestgröße
+      const maxSize = 600 * 1024;
+      const minSize = 10 * 1024;
       
       if (file.size > maxSize) {
         throw new Error(`Die Datei ist zu groß (${Math.round(file.size / 1024)} KB). Maximal zulässig sind 600 KB.`);
@@ -138,7 +136,6 @@
       reader.readAsArrayBuffer(file);
     },
 
-    // Export über den Python-Backend-Microservice
     saveCurrentStageFile: async function() {
       if (!window.currentActiveCustomer || !window.currentActiveFileName) {
         window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
@@ -154,7 +151,7 @@
         return;
       }
 
-      window.showSystemModal('Export läuft', 'Sende Daten an den Export-Server (100% Vorlagenerhalt)...', null, false);
+      window.showSystemModal('Export läuft', 'Sende Daten an den Export-Server (100% Vorlagenerhalt & Dropdowns)...', null, false);
 
       try {
         let updates = [];
@@ -166,8 +163,8 @@
                 if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
                   updates.push({
                     sheet_name: sheetName,
-                    row: rIdx + 1, // openpyxl 1-based
-                    col: cIdx + 1, // openpyxl 1-based
+                    row: rIdx + 1,
+                    col: cIdx + 1,
                     value: cellVal
                   });
                 }
@@ -206,7 +203,7 @@
         document.body.removeChild(downloadLink);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
-        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde über den Server exportiert. Alle Logos, Grafiken, Rahmen und Dropdown-Menüs wurden vollständig beibehalten.`, null, false);
+        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich exportiert. Alle Dropdown-Bereiche wurden auf alle Datenzeilen ausgeweitet.`, null, false);
 
       } catch (err) {
         console.error("Backend Export Error:", err);
