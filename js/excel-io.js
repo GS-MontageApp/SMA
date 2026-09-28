@@ -1,16 +1,14 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.84)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.85)
  * ============================================================================
- * Zentrales Einlese- (Parser) und Export-Modul. 
- * Korrigierter JSZip-Patch mit binärem Array-Export (type: 'array') zum Erhalt von Logos, Grafiken, Dropdowns & Rahmen.
+ * Zentrales Einlese- (Parser) und Export-Modul (Robuste Template-Befüllung).
  */
 
 (function(window) {
   'use strict';
 
   const ExcelIO = {
-    // Validierung der hochgeladenen Datei (Größe & Format)
     validateFile: function(file) {
       if (!file) throw new Error("Keine Datei ausgewählt.");
       const validExtensions = ['.xls', '.xlsx'];
@@ -21,7 +19,7 @@
         throw new Error("Ungültiges Dateiformat. Bitte wählen Sie eine .xls oder .xlsx Datei aus.");
       }
       
-      const maxSize = 600 * 1024; // 600 KB OOM-Schutz für mobile Browser
+      const maxSize = 600 * 1024; // 600 KB OOM-Schutz
       const minSize = 10 * 1024;  // 10 KB Mindestgröße
       
       if (file.size > maxSize) {
@@ -33,7 +31,6 @@
       return true;
     },
 
-    // Einlesen und Parsen des Datei-Buffers via SheetJS
     parseFileBuffer: function(arrayBuffer, fileName) {
       const data = new Uint8Array(arrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
@@ -80,7 +77,6 @@
       };
     },
 
-    // Zentraler Import-Handler für den Dateiupload
     handleExcelImport: function(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -130,7 +126,7 @@
       reader.readAsArrayBuffer(file);
     },
 
-    // Export-Manager: Echter ZIP-Archiv-Patch via JSZip mit korrektem Array-Export
+    // Zuverlässiger Export basierend auf templates/XLSX-Muster.xlsx
     saveCurrentStageFile: async function() {
       if (!window.currentActiveCustomer || !window.currentActiveFileName) {
         window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
@@ -147,66 +143,56 @@
       }
 
       const templatePath = 'templates/XLSX-Muster.xlsx';
-      window.showSystemModal('Export läuft', 'Lade originale Vorlage (templates/XLSX-Muster.xlsx) und patche ZIP-Archiv...', null, false);
+      window.showSystemModal('Export läuft', 'Lade originale Vorlage (templates/XLSX-Muster.xlsx) und generiere Kundendatei...', null, false);
 
       try {
         const response = await fetch(templatePath);
         if (!response.ok) {
           throw new Error(`Vorlage konnte unter ${templatePath} nicht geladen werden (HTTP ${response.status}).`);
         }
-        const templateArrayBuffer = await response.arrayBuffer();
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Lade das Template mit vollständigen Format- und Zellenoptionen
+        const workbook = XLSX.read(arrayBuffer, { type: 'array', cellStyles: true, cellFormulas: true });
 
-        // 1. Lade das Original-Template als ZIP-Archiv über JSZip
-        const zip = new JSZip();
-        const zipContent = await zip.loadAsync(templateArrayBuffer);
-
-        // 2. Erzeuge ein neues Workbook über SheetJS aus den aktuellen App-Daten für die Zelltabelle
-        const wb = XLSX.utils.book_new();
         for (let sheetName in fileObj.sheets) {
-          const ws = XLSX.utils.aoa_to_sheet(fileObj.sheets[sheetName]);
-          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          if (workbook.Sheets[sheetName]) {
+            const targetSheet = workbook.Sheets[sheetName];
+            const sourceRows = fileObj.sheets[sheetName];
+
+            sourceRows.forEach((row, rIdx) => {
+              if (Array.isArray(row)) {
+                row.forEach((cellVal, cIdx) => {
+                  const cellAddress = XLSX.utils.encode_cell({ r: rIdx, c: cIdx });
+                  if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
+                    if (!targetSheet[cellAddress]) {
+                      targetSheet[cellAddress] = { t: 's', v: cellVal };
+                    } else {
+                      targetSheet[cellAddress].v = cellVal;
+                      targetSheet[cellAddress].t = typeof cellVal === 'number' ? 'n' : 's';
+                    }
+                  }
+                });
+              }
+            });
+          }
         }
 
-        // 3. Generiere das Workbook als binäres Array (type: 'array') statt 'string'
-        const sheet1ArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
-        
-        // 4. Extrahiere daraus die aktualisierte sheet1.xml
-        const tempZip = new JSZip();
-        const tempContent = await tempZip.loadAsync(sheet1ArrayBuffer);
-        
-        if (tempContent.files["xl/worksheets/sheet1.xml"]) {
-          const newSheet1Xml = await tempContent.files["xl/worksheets/sheet1.xml"].async("string");
-          // Ersetze ausschließlich die sheet1.xml im originalen Vorlagen-ZIP (Logos, Rahmen, Dropdowns in /xl/validation.xml & Styles bleiben 100% erhalten!)
-          zipContent.file("xl/worksheets/sheet1.xml", newSheet1Xml);
-        }
-
-        // 5. Packe das originale Vorlagen-ZIP mit der aktualisierten Zelltabelle wieder zusammen
-        const patchedBlob = await zipContent.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-
-        // 6. Starte den iOS/PWA-konformen Download
         const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
-        const blobUrl = URL.createObjectURL(patchedBlob);
-        const downloadLink = document.createElement('a');
-        downloadLink.href = blobUrl;
-        downloadLink.download = exportFileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        XLSX.writeFile(workbook, exportFileName);
 
-        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich exportiert. Alle originalen Grafiken, Logos, Rahmenlinien und Dropdown-Menüs wurden vollständig beibehalten.`, null, false);
+        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde basierend auf der Originalvorlage erfolgreich exportiert und heruntergeladen.`, null, false);
 
       } catch (err) {
-        console.error("Deep ZIP Patch Export Error:", err);
-        // Fallback auf SheetJS Standard-Export bei Netzwerk/CORS Problemen
+        console.error("Template Export Error:", err);
         try {
-          const wbFallback = XLSX.utils.book_new();
+          const wb = XLSX.utils.book_new();
           for (let sName in fileObj.sheets) {
             const ws = XLSX.utils.aoa_to_sheet(fileObj.sheets[sName]);
-            XLSX.utils.book_append_sheet(wbFallback, ws, sName);
+            XLSX.utils.book_append_sheet(wb, ws, sName);
           }
-          XLSX.writeFile(wbFallback, "Export_" + window.currentActiveFileName);
-          window.showSystemModal('Export-Hinweis', 'Deep ZIP-Patch konnte nicht ausgeführt werden (Netzwerk/CORS). Es wurde ein Standard-Export durchgeführt.', null, false);
+          XLSX.writeFile(wb, "Export_" + window.currentActiveFileName);
+          window.showSystemModal('Export-Hinweis', 'Vorlage konnte nicht per fetch geladen werden (CORS/Lokal-Modus). Es wurde ein Standard-Export der aktuellen Daten durchgeführt.', null, false);
         } catch (fallbackErr) {
           window.showSystemModal('Export-Fehler', err.message, null, false);
         }
