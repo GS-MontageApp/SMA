@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.66)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.67)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.66: 
- * - SCHLAUCHTYP-SCANNING: Das Skript durchsucht jede Zeile von Anfang bis Ende nach gültigen Schlauchtypen (aus VALID_SCHLAUCH_TYPES) und markiert/filtert valide Datensätze.
- * - Zeile 3 als Master-Header & Spalten A bis R (Index 0 bis 17) Beschränkung.
- * - Anti-Cache Version v0.1.66 Integration.
+ * ÄNDERUNG in v0.1.67: 
+ * - SPALTENBEGRENZTES SCHLAUCH-SCANNING: Das Durchsuchen nach gültigen Schlauchtypen (aus VALID_SCHLAUCH_TYPES) 
+ *   erfolgt strikt und ausschließlich innerhalb der Spalten A bis R (Index 0 bis 17). Spalten ab Index 18 werden ignoriert.
+ * - Zeile 3 als Master-Header & Anti-Cache Version v0.1.67 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -231,19 +231,25 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R & SCHLAUCHTYP-SCANNING LOGIK
+  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R & GEZIELTEM SCHLAUCH-SCANNING IN SPALTEN A-R
   let rawData = [];
   let coordinateMapping = [];
   let headerRowIndex = 3; // Zeile 3 als verbindlicher Tabellenkopf
 
-  // Hilfsfunktion zur Prüfung, ob eine Zeile einen gültigen Schlauchtyp enthält
-  function containsValidSchlauchType(rowArray) {
+  // Hilfsfunktion: Prüft ausschließlich innerhalb der Spalten A bis R (Index 0 bis 17) auf gültige Schlauchtypen
+  function containsValidSchlauchTypeInRange(rowArray) {
     if (!Array.isArray(rowArray)) return false;
-    return rowArray.some(cell => {
-      if (cell === undefined || cell === null) return false;
-      const valStr = String(cell).trim();
-      return window.VALID_SCHLAUCH_TYPES.includes(valStr);
-    });
+    const maxScanLimit = Math.min(rowArray.length, 18);
+    for (let c = 0; c < maxScanLimit; c++) {
+      const cell = rowArray[c];
+      if (cell !== undefined && cell !== null) {
+        const valStr = String(cell).trim();
+        if (window.VALID_SCHLAUCH_TYPES.includes(valStr)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
@@ -259,11 +265,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
 
-      // Markiere oder erkenne, ob es sich um eine valide Schlauchzeile handelt
-      let isSchlauchRow = containsValidSchlauchType(row);
+      // Validiere, ob sich in den Spalten A bis R ein Schlauchtyp befindet
+      let isSchlauchRow = containsValidSchlauchTypeInRange(row);
       if (rIndex === headerRowIndex) {
-        // Zeile 3 ist der Header und wird immer durchgereicht
-        isSchlauchRow = true;
+        isSchlauchRow = true; // Zeile 3 bleibt Header
       }
 
       rawData.push(extractedSlice);
@@ -307,11 +312,10 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     const rowMeta = coordinateMapping[rowIndex];
     const isSchlauch = rowMeta && rowMeta.isSchlauch;
 
-    // Visuelle Hervorhebung für erkannte Schlauchzeilen vs. Metadatenzeilen
     if (isHeader) {
       tr.className = 'bg-slate-200 font-bold border-b-2 border-slate-400';
     } else if (isSchlauch) {
-      tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors'; // Erkannter Schlauch datensatz
+      tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors';
     } else {
       tr.className = 'hover:bg-slate-50/80 transition-colors';
     }
