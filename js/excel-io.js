@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.88)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.90)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -203,7 +203,7 @@
         document.body.removeChild(downloadLink);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
-        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich exportiert. Alle Dropdown-Bereiche wurden auf alle Datenzeilen ausgeweitet.`, null, false);
+        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich exportiert.`, null, false);
 
       } catch (err) {
         console.error("Backend Export Error:", err);
