@@ -1,12 +1,12 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.63)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.64)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.63: 
- * - EXAKTES SHEET-TARGETING auf "Tabelle1" (Case-Sensitive).
- * - 100% ROHFASSUNG ohne jeden Zeilenfilter (die ersten 20 Zeilen und Seite 1 bleiben vollständig erhalten).
- * - Anti-Cache Version v0.1.63 Integration.
+ * ÄNDERUNG in v0.1.64: 
+ * - SPALTENBESCHRÄNKUNG: Ausgabe auf der Bühne ist strikt auf Spalten A bis R (Index 0 bis 17) begrenzt.
+ * - EXAKTES SHEET-TARGETING auf "Tabelle1" (Case-Sensitive) & 100% Rohfassung für Zeilen.
+ * - Anti-Cache Version v0.1.64 Integration.
  */
 
 window.currentActiveCustomer = null;
@@ -231,24 +231,20 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. 100% ROHFASSUNG: KEINERLEI FILTER, ALLE ZEILEN AB INDEX 0
+  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R (Index 0 bis 17)
   let rawData = [];
   let coordinateMapping = [];
   
   if (targetRows && Array.isArray(targetRows) && targetRows.length > 0) {
-    let maxCols = 1;
-    for (let r = 0; r < targetRows.length; r++) {
-      if (Array.isArray(targetRows[r])) {
-        maxCols = Math.max(maxCols, targetRows[r].length);
-      }
-    }
-
     targetRows.forEach((row, rIndex) => {
       if (!Array.isArray(row)) return;
 
       let extractedSlice = [];
       let rowCoords = [];
-      for (let c = 0; c < maxCols; c++) {
+      // Beschränkung auf maximal Spalte R (Index 17, also 18 Spalten von A bis R)
+      const maxColLimit = Math.min(row.length, 18);
+      
+      for (let c = 0; c < maxColLimit; c++) {
         extractedSlice.push(row[c] !== undefined && row[c] !== null ? row[c] : "");
         rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
