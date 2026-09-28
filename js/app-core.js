@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.72)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.73)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R) und striktem Spalte-B-Schlauchfilter.
  */
@@ -14,7 +14,7 @@ window.VALID_SCHLAUCH_TYPES = [
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
 ];
 
-// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17)
+// Feste Master-Spaltenstruktur (A bis R / Index 0 bis 17) mit angepassten Zeilenumbrüchen
 window.MASTER_COLUMNS = [
   { index: 0, key: "kennz", label: "Kennz." },
   { index: 1, key: "schlauch", label: "Schlauch" },
@@ -24,7 +24,7 @@ window.MASTER_COLUMNS = [
   { index: 5, key: "laenge", label: "Länge" },
   { index: 6, key: "lage_a", label: "Lage A" },
   { index: 7, key: "lage_b", label: "Lage B" },
-  { index: 8, key: "max_druck", label: "Max. Druck (Bar)" },
+  { index: 8, key: "max_druck", label: "max.<br>Druck<br>(Bar)" },
   { index: 9, key: "herstelldatum", label: "Herstelldatum" },
   { index: 10, key: "sicherheits_bewertung", label: "Sicherheitstechnische Bewertung" },
   { index: 11, key: "theor_lebensdauer", label: "Theor. Lebensdauer" },
@@ -66,7 +66,7 @@ window.AppData = {
               ["Gustav Schmidt", "", "Schlauchmanagement in Anlehnung an DGUV 113-020", "", "", "", "", "", "", "", "", "Betreiber", "", "", "", "Datum", "", "Unterschrift"],
               ["Kunde", "Hettich", "", "", "", "", "", "", "", "Version: 1", "", "", "", "", "", "", "", ""],
               ["Anlage", "Hubtisch 4", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "Max. Druck (Bar)", "Herstelldatum", "Sicherheitstechnische Bewertung", "Theor. Lebensdauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
+              ["Kennz.", "Schlauch", "NW", "Anschluss A", "Anschluss B", "Länge", "Lage A", "Lage B", "max. Druck (Bar)", "Herstelldatum", "Sicherheitstechnische Bewertung", "Theor. Lebensdauer", "Prüfung am", "Prüfung*", "Nächste Prüfung", "Prüfer", "Einbauort", "Bemerkung"],
               ["1", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "300", "0", "0", "350", "Apr. 26", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "Halle 1", "OK"], 
               ["2", "2SN", "8", "DKOL8-10L", "DKOL8-10L-90°", "950", "0", "0", "350", "Jun. 25", "2", "72", "Apr. 26", "OK", "Apr. 27", "MJ/ML", "Halle 2", "Wartung"]  
             ]
@@ -331,7 +331,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     row.forEach((cellVal) => {
       const cell = isHeader ? document.createElement('th') : document.createElement('td');
       cell.className = 'px-4 py-3 whitespace-nowrap ' + (isHeader ? 'font-bold text-slate-900 bg-slate-200' : 'text-slate-600');
-      cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
+      // Verwende innerHTML für den Header, damit <br> Umbrüche korrekt gerendert werden
+      if (isHeader) {
+        cell.innerHTML = cellVal !== undefined && cellVal !== null ? cellVal : '';
+      } else {
+        cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
+      }
       tr.appendChild(cell);
     });
 
