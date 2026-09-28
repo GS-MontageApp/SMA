@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA - Version v0.1.68 === -->
+  <!-- === SMA - Version v0.1.69 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,19 +10,19 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.68</title>
+  <title id="page-title">Schlauchmanagement v0.1.69</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.68">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.69">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
-  <!-- Modul-Einbindungen mit v0.1.68 Cache-Busting -->
-  <script src="js/parser.js?v=v0.1.68"></script>
-  <script src="js/ui-pool.js?v=v0.1.68"></script>
-  <script src="js/auth.js?v=v0.1.68"></script>
-  <script src="js/app-core.js?v=v0.1.68"></script>
+  <!-- Modul-Einbindungen mit v0.1.69 Cache-Busting -->
+  <script src="js/parser.js?v=v0.1.69"></script>
+  <script src="js/ui-pool.js?v=v0.1.69"></script>
+  <script src="js/auth.js?v=v0.1.69"></script>
+  <script src="js/app-core.js?v=v0.1.69"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
@@ -41,7 +41,7 @@
     </div>
   </header>
 
-  <!-- Hauptcontainer: Optimiert für fließenden Wechsel zwischen mobilen Endgeräten (wie Galaxy S24) und Windows-Desktop Umgebungen -->
+  <!-- Hauptcontainer -->
   <main class="flex-1 max-w-7xl mx-auto w-full pt-3 pb-28 px-3 flex flex-col justify-start">
         
     <!-- MODUL 1: ZENTRALER DATEIPOOL -->
@@ -124,59 +124,6 @@
     </div>
   </div>
 
-  <!-- Granulares Cache-Lösch-Modal mit Checkboxen -->
-  <div id="cache_clear_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-md w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div class="border-b pb-3">
-        <h3 class="font-bold text-base text-slate-800">App-Cache & Speicher bereinigen</h3>
-        <p class="text-xs text-slate-500 mt-0.5">Wählen Sie die Bereiche aus, die zurückgesetzt werden sollen:</p>
-      </div>
-      
-      <div class="space-y-3 py-2 text-xs text-slate-700">
-        <label class="flex items-start gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 transition-colors">
-          <input type="checkbox" id="chk_session" class="cache-checkbox mt-0.5 w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
-          <div>
-            <span class="font-bold block">Offene Sitzung & geöffnete Tabs verwerfen</span>
-            <span class="text-slate-400">Setzt den Footer und die aktive Ansicht auf dem Tisch zurück.</span>
-          </div>
-        </label>
-
-        <label class="flex items-start gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 transition-colors">
-          <input type="checkbox" id="chk_clients" class="cache-checkbox mt-0.5 w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
-          <div>
-            <span class="font-bold block">Dateipool zurücksetzen (Werkszustand)</span>
-            <span class="text-slate-400">Löscht alle importierten Kunden und stellt den Beispielkunden wieder her.</span>
-          </div>
-        </label>
-
-        <label class="flex items-start gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 transition-colors">
-          <input type="checkbox" id="chk_auth" class="cache-checkbox mt-0.5 w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
-          <div>
-            <span class="font-bold block">Angemeldeten Benutzer abmelden</span>
-            <span class="text-slate-400">Zwingt zur erneuten Auswahl des Benutzers beim nächsten Start.</span>
-          </div>
-        </label>
-
-        <label class="flex items-start gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 transition-colors">
-          <input type="checkbox" id="chk_theme" class="cache-checkbox mt-0.5 w-4 h-4 text-red-600 rounded border-slate-300 focus:ring-red-500">
-          <div>
-            <span class="font-bold block">Design-Theme auf Standard zurücksetzen</span>
-            <span class="text-slate-400">Setzt das Farbschema auf das Standard-Theme zurück.</span>
-          </div>
-        </label>
-      </div>
-
-      <div class="flex gap-2 pt-2 border-t">
-        <button onclick="closeCacheClearModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition-colors">
-          Abbrechen
-        </button>
-        <button onclick="executeGranularCacheClear()" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors shadow-sm">
-          Ausgewählte Bereiche löschen
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- Einstellungen / Zahnrad-Menü -->
   <div id="top_menu_modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-white rounded-t-3xl sm:rounded-2xl p-6 max-w-lg w-full space-y-4 text-slate-800 shadow-2xl max-h-[85vh] flex flex-col">
@@ -185,7 +132,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.68</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.69</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
@@ -199,37 +146,10 @@
             <span class="text-slate-400">&rsaquo;</span>
           </button>
         </div>
-
         <div class="pt-3 pb-3">
           <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
             <span>📂 Dateipool</span>
             <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div class="pt-3 pb-3">
-          <button onclick="switchApp('stammdaten', 'Stammdaten'); closeTopMenu(); renderStammdatenView();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>⚙️ Stammdaten öffnen</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div id="logout_menu_item" class="pt-3 pb-3">
-          <button onclick="AuthManager.logout(); closeTopMenu();" class="w-full text-left p-3 bg-red-50 hover:bg-red-100 rounded-xl font-semibold text-red-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>🔓 Benutzer wechseln</span>
-            <span class="text-red-400">&rsaquo;</span>
-          </button>
-        </div>
-
-        <div class="pt-3 pb-3 space-y-2">
-          <h4 class="font-bold text-xs text-slate-400 uppercase tracking-wider mb-2">Design-Theme</h4>
-          <div class="grid grid-cols-2 gap-2 mb-3">
-            <button onclick="setTheme('standard')" id="theme_btn_standard" class="p-2.5 rounded-xl text-xs font-bold border-2 border-indigo-600 bg-white text-indigo-700 shadow-md transition-all text-center">Standard</button>
-            <button onclick="setTheme('gs')" id="theme_btn_gs" class="p-2.5 rounded-xl text-xs font-bold border border-slate-300 bg-slate-100 text-slate-700 transition-all text-center">GS</button>
-          </div>
-          <button onclick="openCacheClearModal()" class="w-full text-left p-3 bg-red-50 hover:bg-red-100 rounded-xl font-semibold text-red-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>🗑️ Cache löschen</span>
-            <span class="text-red-400">&rsaquo;</span>
           </button>
         </div>
       </div>
@@ -240,44 +160,15 @@
     </div>
   </div>
 
-  <!-- Auth Modal -->
-  <div id="auth_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div class="border-b pb-3">
-        <h3 class="font-bold text-base text-slate-800">Benutzer auswählen</h3>
-        <p class="text-xs text-slate-500 mt-0.5">Bitte wählen Sie Ihren Namen für den Baustelleneinsatz.</p>
-      </div>
-      <div id="user_selection_container" class="space-y-2 max-h-60 overflow-y-auto">
-        <!-- Dynamisch -->
-      </div>
-    </div>
-  </div>
-
   <script>
     window.addEventListener('DOMContentLoaded', () => {
-      AuthManager.init();
-      const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
-      setTheme(savedTheme);
-
+      if(window.AuthManager) window.AuthManager.init();
       const restored = window.loadSessionState();
-      if (!restored) {
+      if (!restored && window.UIPool) {
         window.UIPool.renderDateipool();
         window.updateFooterOpenFiles();
       }
     });
-
-    window.renderStammdatenView = function() {
-      const box = document.getElementById('stammdaten_content_box');
-      if (!box) return;
-      const types = window.VALID_SCHLAUCH_TYPES || [];
-      box.innerHTML = `
-        <p class="font-bold text-slate-700 mb-1">Zentrale Referenz-Liste gültiger Schlauchtypen (stammdaten.json):</p>
-        <p class="text-slate-500 mb-3">Diese Typen dienen dem Parser als Referenz:</p>
-        <div class="flex flex-wrap gap-1.5 pt-1">
-          ${types.map(t => `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded-md font-bold text-xs">${t}</span>`).join('')}
-        </div>
-      `;
-    };
   </script>
 </body>
 </html>
