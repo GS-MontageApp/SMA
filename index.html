@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="de" class="h-full">
 <head>
-  <!-- === SMA - Version v0.1.77 === -->
+  <!-- === SMA - Version v0.1.78 === -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -10,25 +10,25 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <title id="page-title">Schlauchmanagement v0.1.77</title>
+  <title id="page-title">Schlauchmanagement v0.1.78</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS für Excel-Parsing -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=v0.1.77">
+  <link rel="stylesheet" href="css/style.css?v=v0.1.78">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
 
-  <!-- Modul-Einbindungen mit v0.1.77 Cache-Busting -->
-  <script src="js/parser.js?v=v0.1.77"></script>
-  <script src="js/ui-pool.js?v=v0.1.77"></script>
-  <script src="js/auth.js?v=v0.1.77"></script>
-  <script src="js/app-core.js?v=v0.1.77"></script>
+  <!-- Modul-Einbindungen mit v0.1.78 Cache-Busting -->
+  <script src="js/parser.js?v=v0.1.78"></script>
+  <script src="js/ui-pool.js?v=v0.1.78"></script>
+  <script src="js/auth.js?v=v0.1.78"></script>
+  <script src="js/app-core.js?v=v0.1.78"></script>
 </head>
 <body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
 
-  <!-- Header oben (Sticky, volle Breite) -->
+  <!-- Header oben (Sticky, volle Breite, randlos auf Mobile) -->
   <header id="main_header" class="sticky top-0 bg-white/85 backdrop-blur-md border-b border-slate-200 z-30 px-3 sm:px-6 py-2.5 shrink-0 transition-colors shadow-xs w-full">
-    <div class="w-full flex justify-between items-center px-1">
+    <div class="w-full flex justify-between items-center px-0 sm:px-1">
       <div class="flex items-center gap-2">
         <h1 id="header-title" class="text-sm sm:text-base font-bold text-slate-800">Dateipool</h1>
       </div>
@@ -41,11 +41,11 @@
     </div>
   </header>
 
-  <!-- Hauptcontainer (Fluid 100% Breite für Desktop, optimierte mobile Ränder) -->
-  <main class="flex-1 w-full pt-3 pb-28 px-2 sm:px-6 flex flex-col justify-start">
+  <!-- Hauptcontainer (Fluid 100% Breite für Desktop, absolut randlos / Edge-to-Edge auf Smartphones) -->
+  <main class="flex-1 w-full pt-3 pb-28 px-0 sm:px-6 flex flex-col justify-start">
         
     <!-- MODUL 1: ZENTRALER DATEIPOOL -->
-    <div id="view-dateipool" class="app-view space-y-4 flex-1 block w-full max-w-7xl mx-auto">
+    <div id="view-dateipool" class="app-view space-y-4 flex-1 block w-full max-w-7xl mx-auto px-2 sm:px-0">
       <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
         <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentraler Dateipool (.xls / .xlsx)</h2>
         <p class="text-xs text-slate-500">Wählen Sie einen Kunden aus, um die zugehörigen Excel-Dateien anzuzeigen.</p>
@@ -57,7 +57,7 @@
     </div>
 
     <!-- MODUL 1.1: KUNDEN-DATEILISTE -->
-    <div id="view-customer-files" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto">
+    <div id="view-customer-files" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto px-2 sm:px-0">
       <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
         <div class="flex items-center justify-between border-b pb-1.5">
           <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dateiansicht</span>
@@ -71,23 +71,23 @@
       </section>
     </div>
 
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Volle Bildschirmbreite) -->
+    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Volle Bildschirmbreite, randlos) -->
     <div id="view-buehne" class="app-view hidden flex-1 flex flex-col w-full">
-      <div class="bg-white border-b border-slate-200 px-4 sm:px-6 py-2.5 flex items-center justify-between shrink-0 shadow-2xs z-20 w-full">
+      <div class="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 shadow-2xs z-20 w-full">
         <button onclick="closeFileOnStage()" class="bg-red-50 hover:bg-red-100 text-red-700 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">
           &times; Tabelle schließen
         </button>
         <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
       </div>
 
-      <!-- Vollbreiter scrollbarer Tabellenbereich für Desktop -->
+      <!-- Vollbreiter scrollbarer Tabellenbereich -->
       <div id="buehne_table_container" class="flex-1 bg-white w-full overflow-x-auto">
         <!-- Dynamisch -->
       </div>
     </div>
 
     <!-- MODUL 3: STAMMDATEN -->
-    <div id="view-stammdaten" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto">
+    <div id="view-stammdaten" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto px-2 sm:px-0">
       <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
         <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentrale Stammdaten (stammdaten.json)</h2>
         <p class="text-xs text-slate-500">Übersicht der hinterlegten Schlauchtypen, Anschlüsse und Nennweiten.</p>
@@ -99,7 +99,7 @@
 
   </main>
 
-  <!-- Footer Navigation (Volle Breite) -->
+  <!-- Footer Navigation (Volle Breite, randlos) -->
   <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-2 sm:px-6 py-2 shrink-0 transition-colors w-full">
     <div id="file_tabs_container" class="w-full flex items-center gap-2 overflow-x-auto pb-1">
       <!-- Wird dynamisch belegt -->
@@ -132,7 +132,7 @@
           <span class="text-xl select-none">⚙️</span>
           <div>
             <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.77</p>
+            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.78</p>
           </div>
         </div>
         <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
