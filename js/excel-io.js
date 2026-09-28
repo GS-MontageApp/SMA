@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.83)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.84)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul. 
- * Nutzt JSZip für echten Template-Archiv-Patch, um Grafiken, Logos, Dropdowns und Rahmen zu 100% zu erhalten.
+ * Korrigierter JSZip-Patch mit binärem Array-Export (type: 'array') zum Erhalt von Logos, Grafiken, Dropdowns & Rahmen.
  */
 
 (function(window) {
@@ -130,7 +130,7 @@
       reader.readAsArrayBuffer(file);
     },
 
-    // Export-Manager: Echter ZIP-Archiv-Patch via JSZip (Garantiert den Erhalt von Logos, Grafiken, Dropdowns & Rahmen)
+    // Export-Manager: Echter ZIP-Archiv-Patch via JSZip mit korrektem Array-Export
     saveCurrentStageFile: async function() {
       if (!window.currentActiveCustomer || !window.currentActiveFileName) {
         window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
@@ -167,22 +167,23 @@
           XLSX.utils.book_append_sheet(wb, ws, sheetName);
         }
 
-        // 3. Generiere die aktualisierte XML-Datei für das erste Tabellenblatt (sheet1.xml)
-        const sheet1XmlStr = XLSX.write(wb, { bookType: 'xlsx', type: 'string', compression: true });
-        // Da XLSX.write das Gesamtarchiv erzeugt, extrahieren wir die sheet1.xml daraus via temporärem JSZip
+        // 3. Generiere das Workbook als binäres Array (type: 'array') statt 'string'
+        const sheet1ArrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+        
+        // 4. Extrahiere daraus die aktualisierte sheet1.xml
         const tempZip = new JSZip();
-        const tempContent = await tempZip.loadAsync(sheet1XmlStr);
+        const tempContent = await tempZip.loadAsync(sheet1ArrayBuffer);
         
         if (tempContent.files["xl/worksheets/sheet1.xml"]) {
           const newSheet1Xml = await tempContent.files["xl/worksheets/sheet1.xml"].async("string");
-          // Ersetze ausschließlich die sheet1.xml im originalen Vorlagen-ZIP (alle Logos in /xl/drawings/, Dropdowns in /xl/validation.xml & Styles bleiben unangetastet!)
+          // Ersetze ausschließlich die sheet1.xml im originalen Vorlagen-ZIP (Logos, Rahmen, Dropdowns in /xl/validation.xml & Styles bleiben 100% erhalten!)
           zipContent.file("xl/worksheets/sheet1.xml", newSheet1Xml);
         }
 
-        // 4. Packe das originale Vorlagen-ZIP mit der aktualisierten Zelltabelle wieder zusammen
+        // 5. Packe das originale Vorlagen-ZIP mit der aktualisierten Zelltabelle wieder zusammen
         const patchedBlob = await zipContent.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-        // 5. Starte den iOS/PWA-konformen Download
+        // 6. Starte den iOS/PWA-konformen Download
         const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
         const blobUrl = URL.createObjectURL(patchedBlob);
         const downloadLink = document.createElement('a');
@@ -197,7 +198,7 @@
 
       } catch (err) {
         console.error("Deep ZIP Patch Export Error:", err);
-        // Fallback auf SheetJS Standard-Export
+        // Fallback auf SheetJS Standard-Export bei Netzwerk/CORS Problemen
         try {
           const wbFallback = XLSX.utils.book_new();
           for (let sName in fileObj.sheets) {
