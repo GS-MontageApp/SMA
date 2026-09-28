@@ -1,18 +1,20 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.67)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.68)
  * ============================================================================
  * Kapselt die zentrale App-Logik, Datenverwaltung, Session-Persistenz und Routing.
- * ÄNDERUNG in v0.1.67: 
- * - SPALTENBEGRENZTES SCHLAUCH-SCANNING: Das Durchsuchen nach gültigen Schlauchtypen (aus VALID_SCHLAUCH_TYPES) 
- *   erfolgt strikt und ausschließlich innerhalb der Spalten A bis R (Index 0 bis 17). Spalten ab Index 18 werden ignoriert.
- * - Zeile 3 als Master-Header & Anti-Cache Version v0.1.67 Integration.
+ * ÄNDERUNG in v0.1.68: 
+ * - HARTES SCHLAUCHTYP-SCANNING-LIMIT: Die Abfrage nach gültigen Typen erfolgt kompromisslos NUR 
+ *   bis Spalte R (Spaltenindex 17). Treffer in Spalte S oder höher werden absolut ignoriert.
+ * - Zeile 3 bleibt verbindlicher Master-Header.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
 
+// Zentrale Referenz-Liste gültiger Schlauchtypen
+// (Später erweiterbar um spezifische genormte Vorgaben, z.B. Abgleich für Hydraulikverschraubungen nach DIN 2353 / ISO 8434-1)
 window.VALID_SCHLAUCH_TYPES = [
   "1SN", "2SN", "4SP", "4SH", "R13", "R15", "462", 
   "1TE", "2TE", "3TE", "Minimess", "Teflon", "R4", "2245N"
@@ -216,7 +218,6 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   window.updateFooterOpenFiles();
   window.saveSessionState();
 
-  // 1. Zwingender, exakter Zugriff auf "Tabelle1" (Case-Sensitive)
   let targetRows = null;
   if (fileObj.sheets) {
     if (fileObj.sheets["Tabelle1"] && Array.isArray(fileObj.sheets["Tabelle1"])) {
@@ -231,24 +232,25 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     targetRows = fileObj.rawData;
   }
 
-  // 2. ROHFASSUNG MIT SPALTENBESCHRÄNKUNG AUF A BIS R & GEZIELTEM SCHLAUCH-SCANNING IN SPALTEN A-R
   let rawData = [];
   let coordinateMapping = [];
   let headerRowIndex = 3; // Zeile 3 als verbindlicher Tabellenkopf
 
-  // Hilfsfunktion: Prüft ausschließlich innerhalb der Spalten A bis R (Index 0 bis 17) auf gültige Schlauchtypen
-  function containsValidSchlauchTypeInRange(rowArray) {
+  // HILFSFUNKTION: Kompromissloses Scanning NUR bis Spalte R (Index 17)
+  function containsValidSchlauchTypeStrictlyInRange(rowArray) {
     if (!Array.isArray(rowArray)) return false;
+    // Harte Obergrenze: Maximal bis Index 17 (Spalte R) prüfen
     const maxScanLimit = Math.min(rowArray.length, 18);
     for (let c = 0; c < maxScanLimit; c++) {
       const cell = rowArray[c];
       if (cell !== undefined && cell !== null) {
         const valStr = String(cell).trim();
         if (window.VALID_SCHLAUCH_TYPES.includes(valStr)) {
-          return true;
+          return true; // Gefunden im validen Suchbereich (Spalte A-R)
         }
       }
     }
+    // Wird ab Index 18 ein Typ erwähnt, liefert die Funktion trotzdem false zurück!
     return false;
   }
   
@@ -258,6 +260,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
       let extractedSlice = [];
       let rowCoords = [];
+      // Datenausgabe ebenfalls auf max 18 Spalten (A bis R) beschränken
       const maxColLimit = Math.min(row.length, 18);
       
       for (let c = 0; c < maxColLimit; c++) {
@@ -265,10 +268,12 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
         rowCoords.push({ originalRow: rIndex, originalCol: c });
       }
 
-      // Validiere, ob sich in den Spalten A bis R ein Schlauchtyp befindet
-      let isSchlauchRow = containsValidSchlauchTypeInRange(row);
+      // Validiere, ob sich im KORRIDOR Spalte A bis R ein Schlauchtyp befindet
+      let isSchlauchRow = containsValidSchlauchTypeStrictlyInRange(row);
+      
+      // Header (Zeile 3) bleibt immer unberührt und wird durchgereicht
       if (rIndex === headerRowIndex) {
-        isSchlauchRow = true; // Zeile 3 bleibt Header
+        isSchlauchRow = true;
       }
 
       rawData.push(extractedSlice);
@@ -282,7 +287,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
 
   window.currentActiveCoordinateMapping = coordinateMapping;
 
-  // 3. Rendern auf die Bühne
+  // Rendern auf die Bühne
   document.querySelectorAll('.app-view').forEach(el => el.classList.add('hidden'));
   const stageView = document.getElementById('view-buehne');
   if (stageView) stageView.classList.remove('hidden');
@@ -315,6 +320,7 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
     if (isHeader) {
       tr.className = 'bg-slate-200 font-bold border-b-2 border-slate-400';
     } else if (isSchlauch) {
+      // Optische Markierung für Datensätze, die das Spalte A-R Filterkriterium erfüllt haben
       tr.className = 'bg-emerald-50/40 hover:bg-emerald-50 transition-colors';
     } else {
       tr.className = 'hover:bg-slate-50/80 transition-colors';
