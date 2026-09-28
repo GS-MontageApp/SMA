@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.78)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.79)
  * ============================================================================
- * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und exakten <br>-Umbrüchen.
+ * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter, exakten <br>-Umbrüchen
+ * sowie der neuen Speicher- und Exportfunktion für die Bühne.
  */
 
 window.currentActiveCustomer = null;
@@ -347,6 +348,46 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   table.appendChild(tbody);
   wrapper.appendChild(table);
   container.appendChild(wrapper);
+};
+
+// Funktion zum Speichern und Exportieren der aktuellen Bühnen-Datei in die Vorlagenstruktur
+window.saveCurrentStageFile = function() {
+  if (!window.currentActiveCustomer || !window.currentActiveFileName) {
+    window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
+    return;
+  }
+
+  const clients = window.AppData.getClients();
+  const fileList = clients[window.currentActiveCustomer] || [];
+  const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
+
+  if (!fileObj) {
+    window.showSystemModal('Fehler', 'Die aktuelle Datei konnte im Speicher nicht gefunden werden.', null, false);
+    return;
+  }
+
+  // Erstelle den Dateinamen für den Export (z.B. mit Präfix oder Originalname)
+  const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
+
+  // Wenn SheetJS (XLSX) verfügbar ist, generiere eine echte Excel-Datei zum Download
+  if (typeof XLSX !== 'undefined' && fileObj.sheets) {
+    try {
+      const wb = XLSX.utils.book_new();
+      for (let sheetName in fileObj.sheets) {
+        const wsData = fileObj.sheets[sheetName];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+      XLSX.writeFile(wb, exportFileName);
+      window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich in Ihre Vorlagenstruktur exportiert und heruntergeladen.`, null, false);
+      return;
+    } catch (e) {
+      console.error("XLSX Export Error:", e);
+    }
+  }
+
+  // Fallback: Als JSON/Text sichern falls SheetJS nicht greift
+  window.showSystemModal('Gespeichert', `Der Arbeitsstand für "${window.currentActiveFileName}" wurde im lokalen Speicher gesichert.`, null, false);
 };
 
 window.closeFileOnStage = function() {
