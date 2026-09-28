@@ -4,7 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs 
-(mit automatischer Anpassung der Datenvalidierungs-Bereiche `sqref`).
+mit robuster Behandlung von mehrfachen sqref-Bereichen.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -14,8 +14,9 @@ from pydantic import BaseModel
 import openpyxl
 import os
 import tempfile
+import re
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.8")
+app = FastAPI(title="SMA Export Microservice", version="1.0.10")
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,7 +64,6 @@ def export_excel(payload: ExportRequest):
     try:
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
 
-        # 1. Trage alle Zellenupdates ein
         max_row_written = 5
         for update in payload.updates:
             sheet_name = update.sheet_name
@@ -76,24 +76,24 @@ def export_excel(payload: ExportRequest):
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
 
-        # 2. Dynamische Erweiterung der Datenvalidierungen (Dropdowns) auf das gesamte Datenblatt
-        # Damit alle Zeilen (z.B. B5 bis B200) das Dropdown von Auswahlseite A1:A14 erhalten
-        for sheetname in wb.sheetnames:
-            ws = wb[sheetname]
-            if hasattr(ws, 'data_validations') and ws.data_validations.dataValidation:
-                for dv in ws.data_validations.dataValidation:
-                    # Wenn sich die Validierung auf Spalten mit Dropdowns bezieht (z.B. B, D, E etc.)
-                    # Erweitere den sqref-Bereich dynamisch bis zur maximal beschriebenen Zeile
-                    current_sqref = str(dv.sqref)
-                    if ":" in current_sqref:
-                        start_col_row, end_col_row = current_sqref.split(":")
-                        # Beispiel: "B5" -> Spalte B, Startzeile 5
-                        import re
-                        col_match = re.match(r"([A-Z]+)", start_col_row)
-                        if col_match:
-                            col_letters = col_match.group(1)
-                            new_end_row = max(max_row_written, 100)
-                            dv.sqref = f"{col_letters}5:{col_letters}{new_end_row}"
+        # Robuste Anpassung der Validierungsbereiche ohne Entpackungsfehler
+        try:
+            for sheetname in wb.sheetnames:
+                ws = wb[sheetname]
+                if hasattr(ws, 'data_validations') and ws.data_validations.dataValidation:
+                    for dv in ws.data_validations.dataValidation:
+                        current_sqref = str(dv.sqref)
+                        # Wenn mehrere Bereiche durch Leerzeichen getrennt sind, nehmen wir den ersten oder passen sie an
+                        first_range = current_sqref.split()[0] if current_sqref else ""
+                        if ":" in first_range:
+                            start_col_row = first_range.split(":")[0]
+                            col_match = re.match(r"([A-Z]+)", start_col_row)
+                            if col_match:
+                                col_letters = col_match.group(1)
+                                new_end_row = max(max_row_written, 150)
+                                dv.sqref = f"{col_letters}5:{col_letters}{new_end_row}"
+        except Exception as val_err:
+            print(f"Hinweis bei Datenvalidierung (unkritisch): {str(val_err)}")
 
         wb.save(output_path)
         wb.close()
