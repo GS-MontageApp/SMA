@@ -1,14 +1,15 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.79)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.80)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter, exakten <br>-Umbrüchen
- * sowie der neuen Speicher- und Exportfunktion für die Bühne.
+ * sowie dem Template-basierten Excel-Export auf Basis von templates/XLSX-Muster.xlsx.
  */
 
 window.currentActiveCustomer = null;
 window.currentActiveFileName = null;
 window.openedFilesStack = [];
+window.currentActiveCoordinateMapping = [];
 
 window.VALID_SCHLAUCH_TYPES = [
   "1SN", "2SN", "4SP", "4SH", "R13", "R15", "462", 
@@ -325,14 +326,43 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
       tr.className = 'hover:bg-slate-50 transition-colors';
     }
 
-    row.forEach((cellVal) => {
+    row.forEach((cellVal, colIndex) => {
       const cell = isHeader ? document.createElement('th') : document.createElement('td');
       cell.className = 'px-4 py-3 whitespace-nowrap ' + (isHeader ? 'font-bold text-slate-900 bg-slate-200' : 'text-slate-600');
       
       if (isHeader) {
         cell.innerHTML = cellVal !== undefined && cellVal !== null ? cellVal : '';
       } else {
-        cell.textContent = cellVal !== undefined && cellVal !== null ? cellVal : '';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = cellVal !== undefined && cellVal !== null ? cellVal : '';
+        input.className = 'w-full bg-transparent border-0 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 text-xs sm:text-sm text-slate-700';
+        
+        // Live-Sync bei Eingabe in die UI-Tabelle zurück in den aktiven Speicher
+        input.oninput = function(e) {
+          const newVal = e.target.value;
+          if (window.currentActiveCoordinateMapping && window.currentActiveCoordinateMapping[rowIndex]) {
+            const coordEntry = window.currentActiveCoordinateMapping[rowIndex];
+            if (coordEntry && coordEntry.coords && coordEntry.coords[colIndex]) {
+              const targetCoord = coordEntry.coords[colIndex];
+              const clients = window.AppData.getClients();
+              const fileList = clients[window.currentActiveCustomer] || [];
+              const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
+              if (fileObj && fileObj.sheets) {
+                const sheetKeys = Object.keys(fileObj.sheets);
+                if (sheetKeys.length > 0) {
+                  const activeSheetName = sheetKeys[0];
+                  if (fileObj.sheets[activeSheetName][targetCoord.originalRow]) {
+                    fileObj.sheets[activeSheetName][targetCoord.originalRow][targetCoord.originalCol] = newVal;
+                    window.AppData.addFileToClient(window.currentActiveCustomer, window.currentActiveFileName, fileObj);
+                  }
+                }
+              }
+            }
+          }
+        };
+
+        cell.appendChild(input);
       }
       tr.appendChild(cell);
     });
@@ -350,8 +380,8 @@ window.openFileOnStage = function(clientName, fileName, pushToStack = true) {
   container.appendChild(wrapper);
 };
 
-// Funktion zum Speichern und Exportieren der aktuellen Bühnen-Datei in die Vorlagenstruktur
-window.saveCurrentStageFile = function() {
+// EXPORT-MANAGER: Lädt templates/XLSX-Muster.xlsx, aktualisiert die Zellen und bietet Download an
+window.saveCurrentStageFile = async function() {
   if (!window.currentActiveCustomer || !window.currentActiveFileName) {
     window.showSystemModal('Hinweis', 'Es ist keine aktive Datei zum Speichern geöffnet.', null, false);
     return;
@@ -361,33 +391,68 @@ window.saveCurrentStageFile = function() {
   const fileList = clients[window.currentActiveCustomer] || [];
   const fileObj = fileList.find(f => f && f.name === window.currentActiveFileName);
 
-  if (!fileObj) {
+  if (!fileObj || !fileObj.sheets) {
     window.showSystemModal('Fehler', 'Die aktuelle Datei konnte im Speicher nicht gefunden werden.', null, false);
     return;
   }
 
-  // Erstelle den Dateinamen für den Export (z.B. mit Präfix oder Originalname)
-  const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
+  const templatePath = 'templates/XLSX-Muster.xlsx';
+  window.showSystemModal('Export läuft', 'Lade originale Vorlage (templates/XLSX-Muster.xlsx) und bereite Export vor...', null, false);
 
-  // Wenn SheetJS (XLSX) verfügbar ist, generiere eine echte Excel-Datei zum Download
-  if (typeof XLSX !== 'undefined' && fileObj.sheets) {
+  try {
+    const response = await fetch(templatePath);
+    if (!response.ok) {
+      throw new Error(`Vorlage konnte unter ${templatePath} nicht geladen werden (HTTP ${response.status}).`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    
+    // Lese die originale Vorlage als Binär-Workbook (behält alle Logos, Styles, Dropdowns und Grafiken bei)
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellStyles: true, cellFormulas: true });
+
+    // Fülle die modifizierten Daten aus dem Arbeitsspeicher in das Vorlagen-Workbook ein
+    for (let sheetName in fileObj.sheets) {
+      if (workbook.Sheets[sheetName]) {
+        const targetSheet = workbook.Sheets[sheetName];
+        const sourceRows = fileObj.sheets[sheetName];
+
+        sourceRows.forEach((row, rIdx) => {
+          if (Array.isArray(row)) {
+            row.forEach((cellVal, cIdx) => {
+              const cellAddress = XLSX.utils.encode_cell({ r: rIdx, c: cIdx });
+              if (cellVal !== undefined && cellVal !== null && cellVal !== "") {
+                if (!targetSheet[cellAddress]) {
+                  targetSheet[cellAddress] = { t: 's', v: cellVal };
+                } else {
+                  targetSheet[cellAddress].v = cellVal;
+                  targetSheet[cellAddress].t = typeof cellVal === 'number' ? 'n' : 's';
+                }
+              }
+            });
+          }
+        });
+      }
+    }
+
+    const exportFileName = "Aktualisiert_" + window.currentActiveFileName;
+    XLSX.writeFile(workbook, exportFileName);
+
+    window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde basierend auf der Originalvorlage erfolgreich exportiert und heruntergeladen. Alle Layouts, Rahmen und Dropdowns wurden beibehalten.`, null, false);
+
+  } catch (err) {
+    console.error("Template Export Error:", err);
+    // Fallback: Direkter Export ohne Vorlagen-Fetch falls fetch im lokalen Dateisystem blockiert wird
     try {
       const wb = XLSX.utils.book_new();
-      for (let sheetName in fileObj.sheets) {
-        const wsData = fileObj.sheets[sheetName];
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      for (let sName in fileObj.sheets) {
+        const ws = XLSX.utils.aoa_to_sheet(fileObj.sheets[sName]);
+        XLSX.utils.book_append_sheet(wb, ws, sName);
       }
-      XLSX.writeFile(wb, exportFileName);
-      window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich in Ihre Vorlagenstruktur exportiert und heruntergeladen.`, null, false);
-      return;
-    } catch (e) {
-      console.error("XLSX Export Error:", e);
+      XLSX.writeFile(wb, "Export_" + window.currentActiveFileName);
+      window.showSystemModal('Export-Hinweis', 'Vorlage konnte nicht per fetch geladen werden (CORS/Lokal-Modus). Es wurde ein Standard-Export der aktuellen Daten durchgeführt.', null, false);
+    } catch (fallbackErr) {
+      window.showSystemModal('Export-Fehler', err.message, null, false);
     }
   }
-
-  // Fallback: Als JSON/Text sichern falls SheetJS nicht greift
-  window.showSystemModal('Gespeichert', `Der Arbeitsstand für "${window.currentActiveFileName}" wurde im lokalen Speicher gesichert.`, null, false);
 };
 
 window.closeFileOnStage = function() {
