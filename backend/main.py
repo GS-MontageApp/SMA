@@ -16,7 +16,7 @@ import os
 import tempfile
 import re
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.15")
+app = FastAPI(title="SMA Export Microservice", version="1.0.16")
 
 app.add_middleware(
     CORSMiddleware,
