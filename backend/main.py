@@ -4,6 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
+Holt die Mustervorlage in Echtzeit direkt von GitHub ab, um stets die allerneueste Version zu verwenden.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -15,8 +16,10 @@ from openpyxl.cell.cell import MergedCell
 import os
 import tempfile
 import re
+import requests
+import io
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.16")
+app = FastAPI(title="SMA Export Microservice", version="1.0.17")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,9 +30,11 @@ app.add_middleware(
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_PATH = os.path.join(BASE_DIR, "..", "templates", "XLSX-Muster.xlsx")
-if not os.path.exists(TEMPLATE_PATH):
-    TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "XLSX-Muster.xlsx")
+LOCAL_TEMPLATE_PATH = os.path.join(BASE_DIR, "..", "templates", "XLSX-Muster.xlsx")
+if not os.path.exists(LOCAL_TEMPLATE_PATH):
+    LOCAL_TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "XLSX-Muster.xlsx")
+
+GITHUB_RAW_TEMPLATE_URL = "https://raw.githubusercontent.com/GS-MontageApp/SMA/main/templates/XLSX-Muster.xlsx"
 
 class CellUpdate(BaseModel):
     sheet_name: str
@@ -43,26 +48,45 @@ class ExportRequest(BaseModel):
 
 @app.get("/")
 def read_root():
+    github_reachable = False
+    try:
+        r = requests.head(GITHUB_RAW_TEMPLATE_URL, timeout=3)
+        github_reachable = (r.status_code == 200)
+    except:
+        pass
+
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "template_found": os.path.exists(TEMPLATE_PATH)
+        "version": "1.0.17",
+        "github_template_reachable": github_reachable,
+        "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
     }
+
+def get_live_workbook():
+    try:
+        response = requests.get(GITHUB_RAW_TEMPLATE_URL, timeout=10)
+        if response.status_code == 200:
+            return openpyxl.load_workbook(io.BytesIO(response.content))
+    except Exception as e:
+        print(f"Warnung: Live-Download von GitHub fehlgeschlagen: {e}. Nutze lokale Fallback-Vorlage.")
+
+    if os.path.exists(LOCAL_TEMPLATE_PATH):
+        return openpyxl.load_workbook(LOCAL_TEMPLATE_PATH)
+    
+    raise HTTPException(
+        status_code=404, 
+        detail="Weder von GitHub noch lokal konnte eine gültige Mustervorlage (XLSX-Muster.xlsx) geladen werden."
+    )
 
 @app.post("/api/export")
 def export_excel(payload: ExportRequest):
-    if not os.path.exists(TEMPLATE_PATH):
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Original-Vorlage (XLSX-Muster.xlsx) wurde auf dem Server nicht gefunden."
-        )
-
     temp_dir = tempfile.mkdtemp()
     output_filename = f"Aktualisiert_{payload.filename}"
     output_path = os.path.join(temp_dir, output_filename)
 
     try:
-        wb = openpyxl.load_workbook(TEMPLATE_PATH)
+        wb = get_live_workbook()
 
         max_row_written = 5
         for update in payload.updates:
@@ -89,7 +113,6 @@ def export_excel(payload: ExportRequest):
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
 
-        # Robuste Anpassung der Validierungsbereiche (Dropdowns ab Zeile 5)
         try:
             for sheetname in wb.sheetnames:
                 ws = wb[sheetname]
@@ -116,5 +139,7 @@ def export_excel(payload: ExportRequest):
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fehler bei der Excel-Verarbeitung: {str(e)}")
