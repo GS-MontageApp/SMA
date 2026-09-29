@@ -4,8 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
-Holt die Mustervorlage in Echtzeit direkt von GitHub ab und erzwingt 
-mittels Cache-Buster (UUID/Timestamp) und no-cache Headern einen echten Live-Fetch.
+Inklusive Cache-Bypass für GitHub-Vorlagen und robustem MergedCell-Handling.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -22,7 +21,7 @@ import io
 import time
 import uuid
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.18")
+app = FastAPI(title="SMA Export Microservice", version="1.0.19")
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +52,6 @@ class ExportRequest(BaseModel):
 def read_root():
     github_reachable = False
     try:
-        # Test mit Cache-Buster
         test_url = f"{GITHUB_RAW_TEMPLATE_URL}?cb={uuid.uuid4()}"
         r = requests.head(test_url, headers={"Cache-Control": "no-cache"}, timeout=3)
         github_reachable = (r.status_code == 200)
@@ -63,14 +61,13 @@ def read_root():
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "version": "1.0.18",
+        "version": "1.0.19",
         "github_template_reachable": github_reachable,
         "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
     }
 
 def get_live_workbook():
     try:
-        # Erzwingt einen absoluten Cache-Bypass durch eindeutigen Query-Parameter und HTTP-Header
         cache_buster = f"?cb={uuid.uuid4()}&t={int(time.time())}"
         target_url = GITHUB_RAW_TEMPLATE_URL + cache_buster
         
@@ -108,25 +105,31 @@ def export_excel(payload: ExportRequest):
             sheet_name = update.sheet_name
             if sheet_name in wb.sheetnames:
                 ws = wb[sheet_name]
-                target_cell = ws.cell(row=update.row, column=update.col)
                 
-                if isinstance(target_cell, MergedCell):
-                    found_master = False
-                    for range_str in ws.merged_cells.ranges:
-                        if target_cell.coordinate in range_str:
-                            min_col, min_row, _, _ = range_str.bounds
-                            target_cell = ws.cell(row=min_row, column=min_col)
-                            found_master = True
-                            break
-                    if not found_master:
-                        continue
+                target_row = update.row
+                target_col = update.col
+                
+                # Robustes Merged-Cell-Handling: Auf die obere linke Master-Zelle umleiten
+                for cr in ws.merged_cells.ranges:
+                    if target_row >= cr.min_row and target_row <= cr.max_row and target_col >= cr.min_col and target_col <= cr.max_col:
+                        target_row = cr.min_row
+                        target_col = cr.min_col
+                        break
+
+                target_cell = ws.cell(row=target_row, column=target_col)
+                
+                # Falls es trotz Umlleitung ein schreibgeschütztes MergedCell-Objekt bleibt, sicher überspringen
+                if type(target_cell).__name__ == 'MergedCell' or isinstance(target_cell, MergedCell):
+                    continue
 
                 target_cell.value = update.value
-                if update.row > max_row_written:
-                    max_row_written = update.row
+                if target_row > max_row_written:
+                    max_row_written = target_row
             else:
                 ws = wb.active
                 ws.cell(row=update.row, column=update.col, value=update.value)
+                if update.row > max_row_written:
+                    max_row_written = update.row
 
         try:
             for sheetname in wb.sheetnames:
