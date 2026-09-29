@@ -118,7 +118,7 @@ def export_excel(payload: ExportRequest):
 
                 target_cell = ws.cell(row=target_row, column=target_col)
                 
-                # Falls es trotz Umlleitung ein schreibgeschütztes MergedCell-Objekt bleibt, sicher überspringen
+                # Falls es trotz Umleitung ein schreibgeschütztes MergedCell-Objekt bleibt, sicher überspringen
                 if type(target_cell).__name__ == 'MergedCell' or isinstance(target_cell, MergedCell):
                     continue
 
