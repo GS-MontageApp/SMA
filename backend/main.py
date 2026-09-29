@@ -3,8 +3,9 @@
 MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
-Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
-Inklusive Live-Einbindung des Logos von GitHub via Pillow und Schutz für A1:K1.
+Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs 
+(dank Pillow bleiben die in der Mustervorlage enthaltenen Logos direkt erhalten).
+Regel: Schützt Zeile 1, Spalten A bis K (A1:K1) vor dem Überschreiben.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -13,7 +14,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import openpyxl
 from openpyxl.cell.cell import MergedCell
-from openpyxl.drawing.image import Image
 import os
 import tempfile
 import re
@@ -22,7 +22,7 @@ import io
 import time
 import uuid
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.22")
+app = FastAPI(title="SMA Export Microservice", version="1.0.23")
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +38,6 @@ if not os.path.exists(LOCAL_TEMPLATE_PATH):
     LOCAL_TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "XLSX-Muster.xlsx")
 
 GITHUB_RAW_TEMPLATE_URL = "https://raw.githubusercontent.com/GS-MontageApp/SMA/main/templates/XLSX-Muster.xlsx"
-GITHUB_RAW_LOGO_URL = "https://raw.githubusercontent.com/GS-MontageApp/SMA/main/templates/logo.png"
 
 class CellUpdate(BaseModel):
     sheet_name: str
@@ -53,24 +52,18 @@ class ExportRequest(BaseModel):
 @app.get("/")
 def read_root():
     github_reachable = False
-    github_logo_reachable = False
     try:
         test_url = f"{GITHUB_RAW_TEMPLATE_URL}?cb={uuid.uuid4()}"
         r = requests.head(test_url, headers={"Cache-Control": "no-cache"}, timeout=3)
         github_reachable = (r.status_code == 200)
-
-        test_logo_url = f"{GITHUB_RAW_LOGO_URL}?cb={uuid.uuid4()}"
-        r_logo = requests.head(test_logo_url, headers={"Cache-Control": "no-cache"}, timeout=3)
-        github_logo_reachable = (r_logo.status_code == 200)
     except:
         pass
 
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "version": "1.0.22",
+        "version": "1.0.23",
         "github_template_reachable": github_reachable,
-        "github_logo_reachable": github_logo_reachable,
         "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
     }
 
@@ -107,18 +100,6 @@ def export_excel(payload: ExportRequest):
 
     try:
         wb = get_live_workbook()
-
-        # Logo von GitHub herunterladen und mit Pillow / openpyxl einfügen
-        try:
-            logo_cache_buster = f"?cb={uuid.uuid4()}&t={int(time.time())}"
-            logo_response = requests.get(GITHUB_RAW_LOGO_URL + logo_cache_buster, timeout=5)
-            if logo_response.status_code == 200:
-                img_io = io.BytesIO(logo_response.content)
-                img = Image(img_io)
-                primary_ws = wb.active
-                primary_ws.add_image(img, "A1")
-        except Exception as logo_err:
-            print(f"Hinweis: Logo konnte nicht eingebunden werden: {logo_err}")
 
         max_row_written = 5
         for update in payload.updates:
@@ -170,8 +151,8 @@ def export_excel(payload: ExportRequest):
                                 col_letters = col_match.group(1)
                                 new_end_row = max(max_row_written, 150)
                                 dv.sqref = f"{col_letters}5:{col_letters}{new_end_row}"
-        except Exception as val_err:
-            print(f"Hinweis bei Datenvalidierung (unkritisch): {str(val_err)}")
+        except Exception as val_ex:
+            print(f"Hinweis bei Datenvalidierung (unkritisch): {str(val_ex)}")
 
         wb.save(output_path)
         wb.close()
