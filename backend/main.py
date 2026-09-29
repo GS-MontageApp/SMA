@@ -4,7 +4,8 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
-Holt die Mustervorlage in Echtzeit direkt von GitHub ab, um stets die allerneueste Version zu verwenden.
+Holt die Mustervorlage in Echtzeit direkt von GitHub ab und erzwingt 
+mittels Cache-Buster (UUID/Timestamp) und no-cache Headern einen echten Live-Fetch.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -18,8 +19,10 @@ import tempfile
 import re
 import requests
 import io
+import time
+import uuid
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.17")
+app = FastAPI(title="SMA Export Microservice", version="1.0.18")
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,7 +53,9 @@ class ExportRequest(BaseModel):
 def read_root():
     github_reachable = False
     try:
-        r = requests.head(GITHUB_RAW_TEMPLATE_URL, timeout=3)
+        # Test mit Cache-Buster
+        test_url = f"{GITHUB_RAW_TEMPLATE_URL}?cb={uuid.uuid4()}"
+        r = requests.head(test_url, headers={"Cache-Control": "no-cache"}, timeout=3)
         github_reachable = (r.status_code == 200)
     except:
         pass
@@ -58,14 +63,24 @@ def read_root():
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "version": "1.0.17",
+        "version": "1.0.18",
         "github_template_reachable": github_reachable,
         "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
     }
 
 def get_live_workbook():
     try:
-        response = requests.get(GITHUB_RAW_TEMPLATE_URL, timeout=10)
+        # Erzwingt einen absoluten Cache-Bypass durch eindeutigen Query-Parameter und HTTP-Header
+        cache_buster = f"?cb={uuid.uuid4()}&t={int(time.time())}"
+        target_url = GITHUB_RAW_TEMPLATE_URL + cache_buster
+        
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+
+        response = requests.get(target_url, headers=headers, timeout=10)
         if response.status_code == 200:
             return openpyxl.load_workbook(io.BytesIO(response.content))
     except Exception as e:
