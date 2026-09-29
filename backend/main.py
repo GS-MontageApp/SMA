@@ -4,7 +4,7 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
-Inklusive Live-Einbindung des Logos von GitHub und Schutz für A1:K1.
+Inklusive Live-Einbindung des Logos von GitHub via Pillow und Schutz für A1:K1.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -22,7 +22,7 @@ import io
 import time
 import uuid
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.21")
+app = FastAPI(title="SMA Export Microservice", version="1.0.22")
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,7 +68,7 @@ def read_root():
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "version": "1.0.21",
+        "version": "1.0.22",
         "github_template_reachable": github_reachable,
         "github_logo_reachable": github_logo_reachable,
         "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
@@ -108,7 +108,7 @@ def export_excel(payload: ExportRequest):
     try:
         wb = get_live_workbook()
 
-        # Logo von GitHub herunterladen und in das erste Tabellenblatt einfügen
+        # Logo von GitHub herunterladen und mit Pillow / openpyxl einfügen
         try:
             logo_cache_buster = f"?cb={uuid.uuid4()}&t={int(time.time())}"
             logo_response = requests.get(GITHUB_RAW_LOGO_URL + logo_cache_buster, timeout=5)
@@ -118,7 +118,7 @@ def export_excel(payload: ExportRequest):
                 primary_ws = wb.active
                 primary_ws.add_image(img, "A1")
         except Exception as logo_err:
-            print(f"Hinweis: Logo konnte nicht von GitHub geladen werden (unkritisch): {logo_err}")
+            print(f"Hinweis: Logo konnte nicht eingebunden werden: {logo_err}")
 
         max_row_written = 5
         for update in payload.updates:
