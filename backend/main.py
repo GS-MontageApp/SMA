@@ -4,7 +4,8 @@ MICROSERVICE: backend/main.py (Schlauchmanagement-App Backend)
 =============================================================================
 Zweck: Echter Server-Export via Python und openpyxl zur 100% verlustfreien 
 Erhaltung aller Logos, Grafiken, Rahmenlinien, Formeln und Dropdown-Menüs.
-Inklusive Cache-Bypass für GitHub-Vorlagen und robustem MergedCell-Handling.
+Regel: Schützt Zeile 1, Spalten A bis K (A1:K1) vor dem Überschreiben, 
+sodass Logos und Vorlagen-Header unangetastet bleiben.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -21,7 +22,7 @@ import io
 import time
 import uuid
 
-app = FastAPI(title="SMA Export Microservice", version="1.0.19")
+app = FastAPI(title="SMA Export Microservice", version="1.0.20")
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,7 +62,7 @@ def read_root():
     return {
         "status": "online", 
         "service": "SMA Excel Export Microservice",
-        "version": "1.0.19",
+        "version": "1.0.20",
         "github_template_reachable": github_reachable,
         "local_fallback_found": os.path.exists(LOCAL_TEMPLATE_PATH)
     }
@@ -103,6 +104,11 @@ def export_excel(payload: ExportRequest):
         max_row_written = 5
         for update in payload.updates:
             sheet_name = update.sheet_name
+            
+            # SCHUTZREGEL: Zeile 1, Spalten A bis K (col 1 bis 11) absolut vor Überschreiben schützen (Logo & Vorlagen-Header)
+            if update.row == 1 and 1 <= update.col <= 11:
+                continue
+
             if sheet_name in wb.sheetnames:
                 ws = wb[sheet_name]
                 
