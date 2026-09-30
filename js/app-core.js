@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.85)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.100)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -415,7 +415,6 @@ window.confirmDeleteFile = function(clientName, fileName) {
       if (window.UIPool && typeof window.UIPool.renderCustomerFilesList === 'function') {
         window.UIPool.renderCustomerFilesList(window.currentActiveCustomer);
       }
-      window.showSystemModal('Gelöscht', `Die Datei "${fileName}" wurde erfolgreich entfernt.`, null, false);
     }
   );
 };
@@ -432,7 +431,6 @@ window.confirmDeleteClient = function(clientName, fileCount) {
       if (window.UIPool && typeof window.UIPool.renderDateipool === 'function') {
         window.UIPool.renderDateipool();
       }
-      window.showSystemModal('Gelöscht', `Der Kunde "${clientName}" wurde samt aller Dateien entfernt.`, null, false);
     }
   );
 };
@@ -478,46 +476,4 @@ window.openTopMenu = function() {
 window.closeTopMenu = function() {
   const menu = document.getElementById('top_menu_modal');
   if (menu) menu.classList.add('hidden');
-};
-
-window.openCacheClearModal = function() {
-  window.closeTopMenu();
-  const modal = document.getElementById('cache_clear_modal');
-  if (modal) {
-    document.querySelectorAll('.cache-checkbox').forEach(cb => cb.checked = false);
-    modal.classList.remove('hidden');
-  }
-};
-
-window.closeCacheClearModal = function() {
-  const modal = document.getElementById('cache_clear_modal');
-  if (modal) modal.classList.add('hidden');
-};
-
-window.executeGranularCacheClear = function() {
-  const clearSession = document.getElementById('chk_session')?.checked;
-  const clearClients = document.getElementById('chk_clients')?.checked;
-  const clearAuth = document.getElementById('chk_auth')?.checked;
-  const clearTheme = document.getElementById('chk_theme')?.checked;
-
-  if (!clearSession && !clearClients && !clearAuth && !clearTheme) {
-    window.showSystemModal('Hinweis', 'Es wurde keine Auswahl getroffen.', null, false);
-    window.closeCacheClearModal();
-    return;
-  }
-
-  if (clearSession) localStorage.removeItem('sma_session_state');
-  if (clearClients) localStorage.removeItem('sma_clients_data');
-  if (clearAuth) {
-    localStorage.removeItem('sma_current_user');
-    if (window.AuthManager && typeof window.AuthManager.forceReset === 'function') {
-      window.AuthManager.forceReset();
-    }
-  }
-  if (clearTheme) localStorage.removeItem('schlauchmanagement_theme');
-
-  window.closeCacheClearModal();
-  window.showSystemModal('Erfolgreich', 'Die ausgewählten Cache-Bereiche wurden bereinigt. Die App wird neu geladen.', function() {
-    window.location.reload();
-  }, false);
 };
