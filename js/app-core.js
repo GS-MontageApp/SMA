@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.100)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.101)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -445,7 +445,13 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true) 
   if (!modal) return;
 
   titleEl.textContent = title;
-  msgEl.textContent = message;
+  
+  // Unterstützt sowohl reinen Text als auch HTML (z. B. für das GIF-Logo im Export-Modus)
+  if (message.includes('<img') || message.includes('<div')) {
+    msgEl.innerHTML = message;
+  } else {
+    msgEl.textContent = message;
+  }
 
   if (showCancel) {
     cancelBtn.classList.remove('hidden');
