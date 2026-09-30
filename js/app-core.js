@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.110)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.111)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -447,9 +447,9 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
 
   if (!modal || !card) return;
 
-  // Im Export-Kompaktmodus (isCompact = true): Extrem schlankes Modal, minimale Innenabstände, exakt auf Logo-Größe angepasst
+  // Im Export-Kompaktmodus (isCompact = true): Exakt auf das nativen Logo-Seitenverhältnis (552x240) angepasst
   if (isCompact) {
-    card.className = 'bg-white rounded-xl p-2.5 w-auto space-y-1.5 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
+    card.className = 'bg-white rounded-xl p-3 w-[300px] max-w-full space-y-1.5 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
     if (headerEl) {
       headerEl.classList.remove('hidden');
       headerEl.className = 'border-b pb-1 w-full text-center text-xs font-bold';
