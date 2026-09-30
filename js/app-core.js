@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.107)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.108)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -447,12 +447,12 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
 
   if (!modal || !card) return;
 
-  // Im Export-Kompaktmodus (isCompact = true): weißes Modal, Überschrift "Export läuft", vergrößertes GIF, keine Buttons
+  // Im Export-Kompaktmodus (isCompact = true): sauberes weißes Modal mit Titel und zentriertem Logo, ohne Aktionsbuttons
   if (isCompact) {
-    card.className = 'bg-white rounded-2xl p-4 max-w-xs w-full space-y-3 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
+    card.className = 'bg-white rounded-2xl p-5 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
     if (headerEl) {
       headerEl.classList.remove('hidden');
-      headerEl.className = 'border-b pb-2 w-full text-center';
+      headerEl.className = 'border-b pb-3 w-full text-center';
     }
     if (cancelBtn) cancelBtn.classList.add('hidden');
     if (confirmBtn) confirmBtn.classList.add('hidden');
@@ -461,7 +461,7 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
     card.className = 'bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200';
     if (headerEl) {
       headerEl.classList.remove('hidden');
-      headerEl.className = 'border-b pb-3';
+      headerEl.className = 'border-b pb-3 w-full text-left';
     }
     if (footerEl) footerEl.classList.remove('hidden');
     if (showCancel) {
@@ -476,8 +476,10 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
   
   if (message.includes('<img') || message.includes('<div')) {
     msgEl.innerHTML = message;
+    msgEl.className = 'w-full flex justify-center py-2';
   } else {
     msgEl.textContent = message;
+    msgEl.className = 'text-xs text-slate-600 whitespace-pre-line leading-relaxed';
   }
 
   const newConfirmBtn = confirmBtn.cloneNode(true);
