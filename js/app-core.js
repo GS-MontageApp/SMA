@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.109)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.110)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -447,12 +447,12 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
 
   if (!modal || !card) return;
 
-  // Im Export-Kompaktmodus (isCompact = true): schlankes, höhenoptimiertes weißes Modal genau passend für das Logo
+  // Im Export-Kompaktmodus (isCompact = true): Extrem schlankes Modal, minimale Innenabstände, exakt auf Logo-Größe angepasst
   if (isCompact) {
-    card.className = 'bg-white rounded-2xl p-3 max-w-xs w-auto space-y-2 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
+    card.className = 'bg-white rounded-xl p-2.5 w-auto space-y-1.5 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
     if (headerEl) {
       headerEl.classList.remove('hidden');
-      headerEl.className = 'border-b pb-1.5 w-full text-center';
+      headerEl.className = 'border-b pb-1 w-full text-center text-xs font-bold';
     }
     if (cancelBtn) cancelBtn.classList.add('hidden');
     if (confirmBtn) confirmBtn.classList.add('hidden');
@@ -476,7 +476,7 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
   
   if (message.includes('<img') || message.includes('<div')) {
     msgEl.innerHTML = message;
-    msgEl.className = 'w-full flex justify-center py-1';
+    msgEl.className = 'w-full flex justify-center p-0 m-0';
   } else {
     msgEl.textContent = message;
     msgEl.className = 'text-xs text-slate-600 whitespace-pre-line leading-relaxed';
