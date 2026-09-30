@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.105)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.110)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -151,10 +151,10 @@
         return;
       }
 
-      // Export-Modal: Kompaktmodus (isCompact = true) -> randlos, keine Buttons, nur das große GIF (320px)
+      // Export-Modal im höhenoptimierten Kompaktmodus (isCompact = true) mit kompaktem Logo (z.B. 120px)
       window.showSystemModal(
         'Export läuft', 
-        '<img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain; display: block; margin: 0; padding: 0;" />', 
+        '<img src="templates/logo.gif" alt="Export läuft..." style="width: 120px; height: 120px; object-fit: contain; display: block; margin: 0 auto; padding: 0;" />', 
         null, 
         false, 
         true
