@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.101)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.105)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -435,28 +435,42 @@ window.confirmDeleteClient = function(clientName, fileCount) {
   );
 };
 
-window.showSystemModal = function(title, message, onConfirm, showCancel = true) {
+window.showSystemModal = function(title, message, onConfirm, showCancel = true, isCompact = false) {
   const modal = document.getElementById('system_generic_modal');
+  const card = document.getElementById('system_modal_card');
+  const headerEl = document.getElementById('system_modal_header');
   const titleEl = document.getElementById('system_modal_title');
   const msgEl = document.getElementById('system_modal_message');
   const confirmBtn = document.getElementById('system_modal_confirm_btn');
   const cancelBtn = document.getElementById('system_modal_cancel_btn');
+  const footerEl = document.getElementById('system_modal_footer');
 
-  if (!modal) return;
+  if (!modal || !card) return;
+
+  // Dynamische Anpassung für randlose/kompakte Modals (z.B. Export-GIF)
+  if (isCompact) {
+    card.className = 'bg-transparent shadow-none p-0 m-0 max-w-max w-auto flex items-center justify-center animate-in fade-in zoom-in-95 duration-200';
+    if (headerEl) headerEl.classList.add('hidden');
+    if (cancelBtn) cancelBtn.classList.add('hidden');
+    if (confirmBtn) confirmBtn.classList.add('hidden');
+    if (footerEl) footerEl.classList.add('hidden');
+  } else {
+    card.className = 'bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200';
+    if (headerEl) headerEl.classList.remove('hidden');
+    if (footerEl) footerEl.classList.remove('hidden');
+    if (showCancel) {
+      if (cancelBtn) cancelBtn.classList.remove('hidden');
+    } else {
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+    }
+  }
 
   titleEl.textContent = title;
   
-  // Unterstützt sowohl reinen Text als auch HTML (z. B. für das GIF-Logo im Export-Modus)
   if (message.includes('<img') || message.includes('<div')) {
     msgEl.innerHTML = message;
   } else {
     msgEl.textContent = message;
-  }
-
-  if (showCancel) {
-    cancelBtn.classList.remove('hidden');
-  } else {
-    cancelBtn.classList.add('hidden');
   }
 
   const newConfirmBtn = confirmBtn.cloneNode(true);
@@ -467,9 +481,11 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true) 
     if (typeof onConfirm === 'function') onConfirm();
   };
 
-  cancelBtn.onclick = function() {
-    modal.classList.add('hidden');
-  };
+  if (cancelBtn) {
+    cancelBtn.onclick = function() {
+      modal.classList.add('hidden');
+    };
+  }
 
   modal.classList.remove('hidden');
 };
