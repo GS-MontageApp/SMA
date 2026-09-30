@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.103)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.104)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -151,10 +151,10 @@
         return;
       }
 
-      // Export-Modal mit um den Faktor 5 vergrößertem GIF (320px statt 64px) anzeigen
+      // Export-Modal: Nur das vergrößerte GIF (320px) ohne Text und mit minimalem Padding (fast randlos)
       window.showSystemModal(
         'Export läuft', 
-        '<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain;" /><span style="font-weight: 500; color: #475569;">Sende Daten an den Export-Server (100% Vorlagenerhalt)...</span></div>', 
+        '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0px; margin: 0px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain; display: block;" /></div>', 
         null, 
         false
       );
