@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.104)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.105)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -151,12 +151,13 @@
         return;
       }
 
-      // Export-Modal: Nur das vergrößerte GIF (320px) ohne Text und mit minimalem Padding (fast randlos)
+      // Export-Modal: Kompaktmodus (isCompact = true) -> randlos, keine Buttons, nur das große GIF (320px)
       window.showSystemModal(
         'Export läuft', 
-        '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0px; margin: 0px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain; display: block;" /></div>', 
+        '<img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain; display: block; margin: 0; padding: 0;" />', 
         null, 
-        false
+        false, 
+        true
       );
 
       try {
@@ -209,7 +210,7 @@
         document.body.removeChild(downloadLink);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
-        // Das Modal nach erfolgreichem Download automatisch wieder schließen (keine Erfolgsmeldung mehr)
+        // Das Modal nach erfolgreichem Download automatisch wieder schließen
         const modal = document.getElementById('system_generic_modal');
         if (modal) modal.classList.add('hidden');
 
