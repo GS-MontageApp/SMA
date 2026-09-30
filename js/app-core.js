@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.106)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.107)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -447,23 +447,28 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
 
   if (!modal || !card) return;
 
-  // Nur im Export-Kompaktmodus (isCompact = true) wird das Modal randlos und ohne Buttons/Header gerendert
+  // Im Export-Kompaktmodus (isCompact = true): weißes Modal, Überschrift "Export läuft", vergrößertes GIF, keine Buttons
   if (isCompact) {
-    card.className = 'bg-transparent shadow-none p-0 m-0 max-w-max w-auto flex items-center justify-center animate-in fade-in zoom-in-95 duration-200';
-    if (headerEl) headerEl.classList.add('hidden');
+    card.className = 'bg-white rounded-2xl p-4 max-w-xs w-full space-y-3 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center text-center';
+    if (headerEl) {
+      headerEl.classList.remove('hidden');
+      headerEl.className = 'border-b pb-2 w-full text-center';
+    }
     if (cancelBtn) cancelBtn.classList.add('hidden');
     if (confirmBtn) confirmBtn.classList.add('hidden');
     if (footerEl) footerEl.classList.add('hidden');
   } else {
     card.className = 'bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200';
-    if (headerEl) headerEl.classList.remove('hidden');
+    if (headerEl) {
+      headerEl.classList.remove('hidden');
+      headerEl.className = 'border-b pb-3';
+    }
     if (footerEl) footerEl.classList.remove('hidden');
     if (showCancel) {
       if (cancelBtn) cancelBtn.classList.remove('hidden');
     } else {
       if (cancelBtn) cancelBtn.classList.add('hidden');
     }
-    // Sicherstellen, dass Bestätigen- und Abbrechen-Buttons für normale Modals aktiv sind
     if (confirmBtn) confirmBtn.classList.remove('hidden');
   }
 
