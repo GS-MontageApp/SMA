@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.99)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.101)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -151,7 +151,13 @@
         return;
       }
 
-      window.showSystemModal('Export läuft', 'Sende Daten an den Export-Server (100% Vorlagenerhalt)...', null, false);
+      // Export-Modal mit animiertem GIF (templates/logo.gif) anzeigen
+      window.showSystemModal(
+        'Export läuft', 
+        '<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 64px; height: 64px; object-fit: contain;" /><span style="font-weight: 500; color: #475569;">Sende Daten an den Export-Server (100% Vorlagenerhalt)...</span></div>', 
+        null, 
+        false
+      );
 
       try {
         let updates = [];
