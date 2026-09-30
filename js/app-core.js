@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: app-core.js (Schlauchmanagement-App v0.1.105)
+ * MODUL: app-core.js (Schlauchmanagement-App v0.1.106)
  * ============================================================================
  * Kernlogik mit fester Spaltenstruktur (A bis R), Spalte-B-Schlauchfilter und UI-Steuerung.
  */
@@ -447,7 +447,7 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
 
   if (!modal || !card) return;
 
-  // Dynamische Anpassung für randlose/kompakte Modals (z.B. Export-GIF)
+  // Nur im Export-Kompaktmodus (isCompact = true) wird das Modal randlos und ohne Buttons/Header gerendert
   if (isCompact) {
     card.className = 'bg-transparent shadow-none p-0 m-0 max-w-max w-auto flex items-center justify-center animate-in fade-in zoom-in-95 duration-200';
     if (headerEl) headerEl.classList.add('hidden');
@@ -463,6 +463,8 @@ window.showSystemModal = function(title, message, onConfirm, showCancel = true, 
     } else {
       if (cancelBtn) cancelBtn.classList.add('hidden');
     }
+    // Sicherstellen, dass Bestätigen- und Abbrechen-Buttons für normale Modals aktiv sind
+    if (confirmBtn) confirmBtn.classList.remove('hidden');
   }
 
   titleEl.textContent = title;
