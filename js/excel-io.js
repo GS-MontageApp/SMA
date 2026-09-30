@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.101)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.102)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
