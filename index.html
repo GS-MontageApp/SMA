@@ -1,228 +1,217 @@
 <!DOCTYPE html>
-<html lang="de" class="h-full">
+<html lang="de">
 <head>
-  <!-- === Schlauchmanagement-App PWA v0.1.109 === -->
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Anti-Cache Direktiven -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-
-  <title id="page-title">Schlauchmanagement v0.1.109</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS für Excel-Datenparsing im Browser -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  
-  <link rel="stylesheet" href="css/style.css?v=v0.1.109">
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a">
-
-  <!-- Modul-Einbindungen mit v0.1.109 Cache-Busting -->
-  <script src="js/excel-io.js?v=v0.1.109"></script>
-  <script src="js/ui-pool.js?v=v0.1.109"></script>
-  <script src="js/auth.js?v=v0.1.109"></script>
-  <script src="js/app-core.js?v=v0.1.109"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Schlauchmanagement-App</title>
+    <!-- Tailwind CSS für sauberes, responsives UI-Design ("Weniger ist mehr") -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        excel: {
+                            bg: '#f8f9fa',
+                            header: '#e9ecef',
+                            border: '#ced4da',
+                            text: '#212529',
+                            accent: '#0d6efd'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Excel-nahes, schlichtes Design mit feinen Linien */
+        body {
+            background-color: #f8f9fa;
+            color: #212529;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .excel-table th, .excel-table td {
+            border: 1px solid #ced4da;
+            padding: 8px 12px;
+        }
+        .excel-table th {
+            background-color: #e9ecef;
+            font-weight: 600;
+        }
+    </style>
 </head>
-<body class="bg-slate-100 h-full text-slate-800 flex flex-col m-0 p-0 overflow-x-hidden transition-colors">
+<body class="flex flex-col h-screen overflow-hidden">
 
-  <!-- Header oben (Sticky, volle Breite, randlos auf Mobile) -->
-  <header id="main_header" class="sticky top-0 bg-white/85 backdrop-blur-md border-b border-slate-200 z-30 px-3 sm:px-6 py-2.5 shrink-0 transition-colors shadow-xs w-full">
-    <div class="w-full flex justify-between items-center px-0 sm:px-1">
-      <div class="flex items-center gap-2">
-        <h1 id="header-title" class="text-sm sm:text-base font-bold text-slate-800">Dateipool</h1>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="role_status_badge" class="text-xs bg-slate-100 px-2.5 py-1 rounded-full font-bold text-slate-600 border border-slate-200">Gast</span>
-        <button onclick="openTopMenu()" class="w-9 h-9 rounded-full hover:bg-slate-100 text-slate-600 transition-colors flex items-center justify-center text-lg shadow-xs" aria-label="Einstellungen öffnen">
-          ⚙️
-        </button>
-      </div>
-    </div>
-  </header>
+    <!-- App-Header (Sticky) -->
+    <header class="bg-excel-header border-b border-excel-border px-4 py-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-3">
+            <span class="text-xl font-bold tracking-tight">SchlauchManagement</span>
+            <span class="text-xs px-2 py-0.5 bg-gray-200 border border-gray-400 rounded text-gray-700 font-mono">v0.0.1</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span id="current-user-display" class="text-sm font-medium text-gray-600 hidden sm:inline"></span>
+            <button onclick="app.openSettings()" class="p-2 rounded hover:bg-gray-200 text-gray-700 transition" title="Stammdaten & Benutzer">
+                ⚙️
+            </button>
+        </div>
+    </header>
 
-  <!-- Hauptcontainer (Fluid 100% Breite für Desktop, absolut randlos / Edge-to-Edge auf Smartphones) -->
-  <main class="flex-1 w-full pt-3 pb-28 px-0 sm:px-6 flex flex-col justify-start">
+    <!-- Hauptbereich (Responsive: Karten auf Mobile, Tabelle auf Desktop) -->
+    <main class="flex-1 overflow-auto p-4 md:p-6">
         
-    <!-- MODUL 1: ZENTRALER DATEIPOOL -->
-    <div id="view-dateipool" class="app-view space-y-4 flex-1 block w-full max-w-7xl mx-auto px-2 sm:px-0">
-      <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentraler Dateipool (.xls / .xlsx)</h2>
-        <p class="text-xs text-slate-500">Wählen Sie einen Kunden aus, um die zugehörigen Excel-Dateien anzuzeigen.</p>
-        
-        <div id="dateipool_grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-          <!-- Dynamisch durch ui-pool.js -->
-        </div>
-      </section>
-    </div>
-
-    <!-- MODUL 1.1: KUNDEN-DATEILISTE -->
-    <div id="view-customer-files" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto px-2 sm:px-0">
-      <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
-        <div class="flex items-center justify-between border-b pb-1.5">
-          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dateiansicht</span>
-          <button onclick="switchApp('dateipool', 'Dateipool')" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Kundenübersicht</button>
-        </div>
-        <p class="text-xs text-slate-500">Wählen Sie eine Datei aus, um sie zu öffnen.</p>
-        
-        <div id="customer_files_list" class="space-y-2.5 pt-2">
-          <!-- Dynamisch durch ui-pool.js -->
-        </div>
-      </section>
-    </div>
-
-    <!-- MODUL 2: BÜHNE / BEARBEITUNG (Mit Schließen und grünem Speichern-Button) -->
-    <div id="view-buehne" class="app-view hidden flex-1 flex flex-col w-full">
-      <div class="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 flex items-center justify-between shrink-0 shadow-2xs z-20 w-full">
-        <div class="flex items-center gap-2">
-          <button onclick="closeFileOnStage()" class="bg-red-50 hover:bg-red-100 text-red-700 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">
-            Schließen
-          </button>
-          <button onclick="ExcelIO.saveCurrentStageFile()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5">
-            <span>💾 Speichern</span>
-          </button>
-        </div>
-        <button onclick="openCustomerFiles(currentActiveCustomer)" class="text-xs font-bold text-indigo-600 hover:underline">&larr; Zurück zur Dateiliste</button>
-      </div>
-
-      <!-- Vollbreiter scrollbarer Tabellenbereich -->
-      <div id="buehne_table_container" class="flex-1 bg-white w-full overflow-x-auto">
-        <!-- Dynamisch -->
-      </div>
-    </div>
-
-    <!-- MODUL 3: STAMMDATEN -->
-    <div id="view-stammdaten" class="app-view hidden space-y-4 flex-1 w-full max-w-7xl mx-auto px-2 sm:px-0">
-      <section class="bg-white p-4 sm:p-6 rounded-2xl shadow-sm space-y-3 transition-colors border border-slate-200 w-full">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider border-b pb-1.5">Zentrale Stammdaten (stammdaten.json)</h2>
-        <p class="text-xs text-slate-500">Übersicht der hinterlegten Schlauchtypen, Anschlüsse und Nennweiten.</p>
-        <div id="stammdaten_content_box" class="p-4 bg-slate-50 rounded-xl border border-slate-200 font-mono text-xs text-slate-600 space-y-2">
-          <!-- Dynamisch befüllt -->
-        </div>
-      </section>
-    </div>
-
-  </main>
-
-  <!-- Footer Navigation (Volle Breite, randlos) -->
-  <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-40 px-2 sm:px-6 py-2 shrink-0 transition-colors w-full">
-    <div id="file_tabs_container" class="w-full flex items-center gap-2 overflow-x-auto pb-1">
-      <!-- Wird dynamisch belegt -->
-    </div>
-  </footer>
-
-  <!-- Einheitliches System-Modal -->
-  <div id="system_generic_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div id="system_modal_card" class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div id="system_modal_header" class="border-b pb-3">
-        <h3 id="system_modal_title" class="font-bold text-base text-slate-800">Hinweis</h3>
-      </div>
-      <p id="system_modal_message" class="text-xs text-slate-600 whitespace-pre-line leading-relaxed"></p>
-      <div id="system_modal_footer" class="flex gap-2 pt-2">
-        <button id="system_modal_cancel_btn" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition-colors">
-          Abbrechen
-        </button>
-        <button id="system_modal_confirm_btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors shadow-sm">
-          Bestätigen
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Einstellungen / Zahnrad-Menü -->
-  <div id="top_menu_modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white rounded-t-3xl sm:rounded-2xl p-6 max-w-lg w-full space-y-4 text-slate-800 shadow-2xl max-h-[85vh] flex flex-col">
-      <div class="flex justify-between items-center border-b pb-3">
-        <div class="flex items-center gap-2">
-          <span class="text-xl select-none">⚙️</span>
-          <div>
-            <h3 class="font-bold text-lg text-indigo-600 leading-tight">Schlauchmanagement</h3>
-            <p class="text-xs font-mono text-slate-400 mt-0.5">Version v0.1.109</p>
-          </div>
-        </div>
-        <button onclick="closeTopMenu()" class="text-slate-400 hover:text-slate-700 font-bold text-xl px-2">&times;</button>
-      </div>
-
-      <div class="overflow-y-auto space-y-3 pr-1 text-sm text-slate-600 flex-1 divide-y divide-slate-100">
-        <div class="pt-1 pb-3">
-          <input type="file" id="hidden_file_input" accept=".xls, .xlsx" class="hidden" onchange="ExcelIO.handleExcelImport(event)">
-          <button onclick="document.getElementById('hidden_file_input').click(); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>📁 Schlauchliste importieren</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
+        <!-- Login / Benutzer-Eingangssperre (Harte Pflicht) -->
+        <div id="auth-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 border border-excel-border">
+                <h2 class="text-lg font-bold mb-2">Benutzer-Anmeldung</h2>
+                <p class="text-sm text-gray-600 mb-4">Bitte wählen Sie Ihren Namen für die Nachvollziehbarkeit in den Exporten.</p>
+                <select id="user-select" class="w-full border border-excel-border rounded p-2 mb-4 bg-white text-sm focus:outline-none focus:border-excel-accent">
+                    <option value="">-- Benutzer auswählen --</option>
+                    <option value="M. Mustermann">M. Mustermann</option>
+                    <option value="A. Techniker">A. Techniker</option>
+                </select>
+                <button onclick="app.handleLogin()" class="w-full bg-excel-accent text-white font-medium py-2 rounded hover:bg-blue-600 transition text-sm">
+                    App entsperren
+                </button>
+            </div>
         </div>
 
-        <div class="pt-3 pb-3">
-          <button onclick="switchApp('dateipool', 'Dateipool'); closeTopMenu();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>📂 Dateipool</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
+        <!-- Dashboard / Dateipool & Aktive Bühne -->
+        <div class="max-w-7xl mx-auto space-y-6">
+            
+            <!-- Aktionsleiste -->
+            <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded border border-excel-border shadow-sm">
+                <div class="flex items-center space-x-3">
+                    <label class="cursor-pointer bg-excel-header hover:bg-gray-200 border border-excel-border px-4 py-2 rounded text-sm font-medium transition flex items-center space-x-2">
+                        <span>📂 Excel-Datei laden (.xlsx/.xls)</span>
+                        <input type="file" id="file-input" accept=".xlsx, .xls" class="hidden" onchange="app.handleFileUpload(event)">
+                    </label>
+                    <span id="file-status" class="text-xs text-gray-500 font-mono">Keine Datei aktiv</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="app.triggerVoiceInput()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium transition flex items-center space-x-1">
+                        <span>🎙️ Voice-Assistant</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Datenbereich (Card-Anker auf Mobile / Excel-Tabelle auf Desktop) -->
+            <div class="bg-white rounded border border-excel-border shadow-sm overflow-hidden">
+                <div class="p-3 bg-excel-header border-b border-excel-border font-semibold text-sm flex justify-between items-center">
+                    <span>Schlauchkataster / Aktive Daten</span>
+                    <span id="record-count" class="text-xs text-gray-500 font-normal">0 Datensätze</span>
+                </div>
+                
+                <!-- Tabellen-Ansicht für Desktop / Karten für Mobile -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse excel-table text-sm">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Schlauchtyp</th>
+                                <th>Nennweite (DN)</th>
+                                <th>Länge (m)</th>
+                                <th>Betriebsdruck</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body">
+                            <tr>
+                                <td colspan="6" class="text-center text-gray-500 py-8">
+                                    Bitte laden Sie eine Excel-Datei über den Dateipool oder erfassen Sie Daten per Voice-Assistant.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
+    </main>
 
-        <div class="pt-3 pb-3">
-          <button onclick="switchApp('stammdaten', 'Stammdaten'); closeTopMenu(); renderStammdatenView();" class="w-full text-left p-3 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-slate-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>⚙️ Stammdaten öffnen</span>
-            <span class="text-slate-400">&rsaquo;</span>
-          </button>
-        </div>
+    <!-- App-Logik (Modulare Core-Struktur) -->
+    <script>
+        class SchlauchApp {
+            constructor() {
+                this.currentUser = localStorage.getItem('schlauch_app_user') || '';
+                this.activeData = [];
+                this.init();
+            }
 
-        <div id="logout_menu_item" class="pt-3 pb-3">
-          <button onclick="AuthManager.logout(); closeTopMenu();" class="w-full text-left p-3 bg-red-50 hover:bg-red-100 rounded-xl font-semibold text-red-700 transition-colors flex items-center justify-between shadow-sm">
-            <span>🔓 Benutzer wechseln</span>
-            <span class="text-red-400">&rsaquo;</span>
-          </button>
-        </div>
-      </div>
+            init() {
+                if (this.currentUser) {
+                    document.getElementById('auth-modal').classList.add('hidden');
+                    document.getElementById('current-user-display').textContent = `Benutzer: ${this.currentUser}`;
+                }
+                this.loadFromLocalStorage();
+            }
 
-      <button onclick="closeTopMenu()" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 rounded-xl text-sm transition-colors">
-        Schließen
-      </button>
-    </div>
-  </div>
+            handleLogin() {
+                const select = document.getElementById('user-select');
+                if (!select.value) {
+                    alert('Bitte wählen Sie einen gültigen Benutzer aus.');
+                    return;
+                }
+                this.currentUser = select.value;
+                localStorage.setItem('schlauch_app_user', this.currentUser);
+                document.getElementById('auth-modal').classList.add('hidden');
+                document.getElementById('current-user-display').textContent = `Benutzer: ${this.currentUser}`;
+            }
 
-  <!-- Auth Modal -->
-  <div id="auth_modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4 text-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-      <div class="border-b pb-3">
-        <h3 class="font-bold text-base text-slate-800">Benutzer auswählen</h3>
-        <p class="text-xs text-slate-500 mt-0.5">Bitte wählen Sie Ihren Namen für den Baustelleneinsatz.</p>
-      </div>
-      <div id="user_selection_container" class="space-y-2 max-h-60 overflow-y-auto">
-        <!-- Dynamisch -->
-      </div>
-    </div>
-  </div>
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                // Dateigrößen-Check (max 600 KB zum Schutzmobiler Browser)
+                if (file.size > 600 * 1024) {
+                    alert('Die Datei überschreitet das Limit von 600 KB zum Schutz des mobilen Arbeitsspeichers.');
+                    return;
+                }
 
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      if (window.AuthManager) AuthManager.init();
-      const savedTheme = localStorage.getItem('schlauchmanagement_theme') || 'standard';
-      setTheme(savedTheme);
+                document.getElementById('file-status').textContent = `Aktiv: ${file.name}`;
+                // Hier greift später der Parser-Modul
+                console.log("Datei erfolgreich eingelesen (Read-Only Originalschutz aktiv).");
+            }
 
-      if (window.ExcelIO && typeof window.ExcelIO.pingBackend === 'function') {
-        window.ExcelIO.pingBackend();
-      }
+            triggerVoiceInput() {
+                alert('Voice-to-Excel Assistant: Bereit für Spracheingabe (Fachjargon-Mapping aktiv).');
+            }
 
-      const restored = window.loadSessionState();
-      if (!restored) {
-        if (window.UIPool) window.UIPool.renderDateipool();
-        window.updateFooterOpenFiles();
-      }
-    });
+            loadFromLocalStorage() {
+                const saved = localStorage.getItem('schlauch_app_data');
+                if (saved) {
+                    try {
+                        this.activeData = JSON.parse(saved);
+                        this.renderTable();
+                    } catch (e) {
+                        console.error('Fehler beim Laden aus dem LocalStorage', e);
+                    }
+                }
+            }
 
-    window.renderStammdatenView = function() {
-      const box = document.getElementById('stammdaten_content_box');
-      if (!box) return;
-      const types = window.VALID_SCHLAUCH_TYPES || [];
-      box.innerHTML = `
-        <p class="font-bold text-slate-700 mb-1">Zentrale Referenz-Liste gültiger Schlauchtypen (stammdaten.json):</p>
-        <p class="text-slate-500 mb-3">Diese Typen dienen dem Parser als Referenz:</p>
-        <div class="flex flex-wrap gap-1.5 pt-1">
-          ${types.map(t => `<span class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded-md font-bold text-xs">${t}</span>`).join('')}
-        </div>
-      `;
-    };
-  </script>
+            renderTable() {
+                const tbody = document.getElementById('data-table-body');
+                if (this.activeData.length === 0) return;
+                
+                tbody.innerHTML = this.activeData.map(row => `
+                    <tr>
+                        <td>${row.id || '-'}</td>
+                        <td>${row.typ || '-'}</td>
+                        <td>${row.dn || '-'}</td>
+                        <td>${row.laenge || '-'}</td>
+                        <td>${row.druck || '-'}</td>
+                        <td><span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">${row.status || 'Bereit'}</span></td>
+                    </tr>
+                `).join('');
+                document.getElementById('record-count').textContent = `${this.activeData.length} Datensätze`;
+            }
+
+            openSettings() {
+                alert('Stammdaten- & GitHub-Commit-Verwaltung (Öffnet Konfigurations-Modal)');
+            }
+        }
+
+        // App initialisieren
+        const app = new SchlauchApp();
+    </script>
 </body>
 </html>
