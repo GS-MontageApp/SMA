@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MODUL: excel-io.js (Schlauchmanagement-App v0.1.102)
+ * MODUL: excel-io.js (Schlauchmanagement-App v0.1.103)
  * ============================================================================
  * Zentrales Einlese- (Parser) und Export-Modul.
  */
@@ -151,10 +151,10 @@
         return;
       }
 
-      // Export-Modal mit animiertem GIF (templates/logo.gif) anzeigen
+      // Export-Modal mit um den Faktor 5 vergrößertem GIF (320px statt 64px) anzeigen
       window.showSystemModal(
         'Export läuft', 
-        '<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 64px; height: 64px; object-fit: contain;" /><span style="font-weight: 500; color: #475569;">Sende Daten an den Export-Server (100% Vorlagenerhalt)...</span></div>', 
+        '<div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px;"><img src="templates/logo.gif" alt="Export läuft..." style="width: 320px; height: 320px; object-fit: contain;" /><span style="font-weight: 500; color: #475569;">Sende Daten an den Export-Server (100% Vorlagenerhalt)...</span></div>', 
         null, 
         false
       );
@@ -209,7 +209,9 @@
         document.body.removeChild(downloadLink);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
-        window.showSystemModal('Erfolgreich gespeichert', `Die Datei "${exportFileName}" wurde erfolgreich exportiert. Autofilter und Dropdown-Bereiche wurden fehlerfrei ausgerichtet.`, null, false);
+        // Das Modal nach erfolgreichem Download automatisch wieder schließen (keine Erfolgsmeldung mehr)
+        const modal = document.getElementById('system_generic_modal');
+        if (modal) modal.classList.add('hidden');
 
       } catch (err) {
         console.error("Backend Export Error:", err);
